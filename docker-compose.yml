@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: mysong_user
       POSTGRES_PASSWORD: mysong_password
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,9 +24,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://mysong_user:mysong_password@postgres:5432/mysong
-      - SUNO_API_KEY=${SUNO_API_KEY}
-      - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_URL=postgresql+asyncpg://mysong_user:mysong_password@postgres:5432/mysong
+      - SUNO_API_KEY=${SUNO_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000/api/v1
+      - VITE_API_URL=http://localhost:8000/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules

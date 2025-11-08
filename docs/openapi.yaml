@@ -1,0 +1,501 @@
+openapi: 3.0.3
+info:
+  title: Mysong-Podarok.ru API
+  description: API для сервиса создания персонализированных музыкальных треков
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: dev@mysong-podarok.ru
+
+servers:
+  - url: https://api.mysong-podarok.ru/api/v1
+    description: Production server
+  - url: http://localhost:8000/api/v1
+    description: Development server
+
+tags:
+  - name: auth
+    description: Аутентификация и авторизация
+  - name: orders
+    description: Управление заказами
+  - name: tracks
+    description: Работа с музыкальными треками
+  - name: payments
+    description: Платежи и оплата
+  - name: admin
+    description: Административные функции
+
+paths:
+  /auth/login/{provider}:
+    post:
+      tags: [auth]
+      summary: OAuth авторизация
+      description: Вход через социальные сети
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [vk, yandex, google]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthRequest'
+      responses:
+        '200':
+          description: Успешная авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Получить текущего пользователя
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /orders:
+    post:
+      tags: [orders]
+      summary: Создать новый заказ
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Заказ создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      tags: [orders]
+      summary: Получить список заказов пользователя
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, waiting_interview, in_progress, ready, paid, completed]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  total:
+                    type: integer
+
+  /orders/{order_id}:
+    get:
+      tags: [orders]
+      summary: Получить детальную информацию о заказе
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+
+  /tracks/{track_id}:
+    get:
+      tags: [tracks]
+      summary: Получить информацию о треке
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: track_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+
+  /payments/initiate:
+    post:
+      tags: [payments]
+      summary: Инициировать платеж
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [track_id]
+              properties:
+                track_id:
+                  type: string
+                  format: uuid
+                amount:
+                  type: integer
+                  default: 9900
+                currency:
+                  type: string
+                  default: RUB
+      responses:
+        '200':
+          description: Платеж инициирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+
+  # Административные endpoints
+  /admin/orders:
+    get:
+      tags: [admin]
+      summary: Получить список всех заказов (админ)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminOrder'
+                  total:
+                    type: integer
+
+  /admin/orders/{order_id}/tracks:
+    post:
+      tags: [admin]
+      summary: Добавить трек к заказу (админ)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrackRequest'
+      responses:
+        '201':
+          description: Трек добавлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    OAuthRequest:
+      type: object
+      required: [code, redirect_uri]
+      properties:
+        code:
+          type: string
+        redirect_uri:
+          type: string
+          format: uri
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          default: bearer
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        avatar:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+
+    CreateOrderRequest:
+      type: object
+      required: [theme, genre, recipient_name, occasion]
+      properties:
+        theme:
+          type: string
+          enum: [свадьба, день_рождения, годовщина, предложение, другий]
+        genre:
+          type: string
+          enum: [поп, рок, хип-хоп, джаз, классика, электронная, другий]
+        recipient_name:
+          type: string
+          maxLength: 100
+        occasion:
+          type: string
+          maxLength: 200
+        details:
+          type: string
+          maxLength: 1000
+        preferences:
+          type: object
+          properties:
+            mood:
+              type: string
+            instruments:
+              type: array
+              items:
+                type: string
+            special_requests:
+              type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        theme:
+          type: string
+        genre:
+          type: string
+        recipient_name:
+          type: string
+        status:
+          type: string
+          enum: [draft, waiting_interview, in_progress, ready, paid, completed, cancelled]
+        interview_link:
+          type: string
+          format: uri
+        estimated_time:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          properties:
+            details:
+              type: string
+            preferences:
+              type: object
+            tracks:
+              type: array
+              items:
+                $ref: '#/components/schemas/Track'
+
+    Track:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        suno_id:
+          type: string
+        preview_url:
+          type: string
+          format: uri
+        full_url:
+          type: string
+          format: uri
+        duration:
+          type: integer
+        is_paid:
+          type: boolean
+        status:
+          type: string
+          enum: [generating, ready, error]
+        created_at:
+          type: string
+          format: date-time
+
+    PaymentResponse:
+      type: object
+      properties:
+        payment_id:
+          type: string
+        payment_url:
+          type: string
+          format: uri
+        confirmation_token:
+          type: string
+        amount:
+          type: integer
+        currency:
+          type: string
+
+    AdminOrder:
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            tracks_count:
+              type: integer
+
+    CreateTrackRequest:
+      type: object
+      required: [suno_id, audio_url]
+      properties:
+        suno_id:
+          type: string
+        title:
+          type: string
+          default: "Вариант 1"
+        audio_url:
+          type: string
+          format: uri
+        duration:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Неверный запрос
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: object
+
+    Unauthorized:
+      description: Не авторизован
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                default: "Unauthorized"
+
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                default: "Not found"
