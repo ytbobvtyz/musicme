@@ -1,5 +1,5 @@
 import apiClient from './client'
-import { Order, OrderCreate } from '@/types/order'
+import { OrderCreate } from '@/types/order'
 
 export const getOrders = async (params?: { status?: string; limit?: number; offset?: number }) => {
   const response = await apiClient.get('/orders', { params })

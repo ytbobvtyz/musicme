@@ -3,8 +3,51 @@
 @tailwind utilities;
 
 @layer base {
+  * {
+    @apply antialiased;
+  }
+  
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-white text-gray-900;
+    font-feature-settings: 'kern' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent;
+  }
+  
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl border border-gray-200/50;
+  }
+  
+  .hover-lift {
+    @apply transition-transform duration-300 ease-out;
+  }
+  
+  .hover-lift:hover {
+    @apply -translate-y-1;
+  }
+  
+  .button-primary {
+    @apply bg-primary-600 text-white px-8 py-3.5 rounded-full text-lg font-medium;
+    @apply hover:bg-primary-700 active:scale-95;
+    @apply transition-all duration-200 ease-out;
+    @apply shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30;
+  }
+  
+  .button-secondary {
+    @apply bg-white text-primary-600 px-8 py-3.5 rounded-full text-lg font-medium;
+    @apply border-2 border-primary-600;
+    @apply hover:bg-primary-50 active:scale-95;
+    @apply transition-all duration-200 ease-out;
   }
 }
 

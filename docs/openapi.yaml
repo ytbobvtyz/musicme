@@ -313,7 +313,7 @@ components:
           format: email
         name:
           type: string
-        avatar:
+        avatar_url:
           type: string
           format: uri
         created_at:
