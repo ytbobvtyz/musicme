@@ -1,31 +1,31 @@
 import { useAuthStore } from '@/store/authStore'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const AuthBlock = () => {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, user, setToken } = useAuthStore()
+  const navigate = useNavigate()
 
   const handleAuth = async (provider: 'vk' | 'google' | 'yandex') => {
-    // TODO: Реализовать OAuth авторизацию
+    if (provider === 'yandex') {
+      // Простой редирект на твой бэкенд
+      window.location.href = 'http://localhost:8000/api/v1/auth/yandex/login'
+      return
+    }
+    
+    // TODO: Реализовать OAuth авторизацию для других провайдеров
     console.log(`Авторизация через ${provider}`)
-    // Временно показываем alert
     alert(`Авторизация через ${provider} будет реализована позже`)
   }
-
   if (isAuthenticated && user) {
     return (
       <div className="fixed top-24 left-6 z-40 animate-fade-in">
         <div className="glass rounded-2xl p-4 shadow-xl backdrop-blur-xl">
           <div className="flex items-center gap-3">
-            {user.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt={user.name || user.email}
-                className="w-10 h-10 rounded-full"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-semibold">
-                {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
-              </div>
-            )}
+            {/* Замени сложную логику аватара на простую иконку */}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-semibold">
+              {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
+            </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">
                 {user.name || user.email}
@@ -87,4 +87,3 @@ const AuthBlock = () => {
 }
 
 export default AuthBlock
-

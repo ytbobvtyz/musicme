@@ -27,6 +27,8 @@ services:
       - DATABASE_URL=postgresql+asyncpg://mysong_user:mysong_password@postgres:5432/mysong
       - SUNO_API_KEY=${SUNO_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy

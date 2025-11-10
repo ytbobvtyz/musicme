@@ -10,6 +10,23 @@ interface AuthState {
   logout: () => void
 }
 
+// Функция для декодирования JWT токена
+const decodeJWT = (token: string): { 
+  sub: string; 
+  email?: string; 
+  name?: string;
+  created_at?: string;
+} => {
+  try {
+    const payload = token.split('.')[1]
+    const decoded = atob(payload)
+    return JSON.parse(decoded)
+  } catch (error) {
+    console.error('Error decoding JWT:', error)
+    return { sub: 'unknown' }
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: localStorage.getItem('token'),
@@ -17,9 +34,27 @@ export const useAuthStore = create<AuthState>((set) => ({
   
   setUser: (user) => set({ user, isAuthenticated: true }),
   
-  setToken: (token) => {
+  setToken: (token: string) => {
     localStorage.setItem('token', token)
-    set({ token, isAuthenticated: true })
+    
+    // Декодируем JWT чтобы получить данные пользователя
+    const decoded = decodeJWT(token)
+    
+    const user: User = {
+      id: decoded.sub,
+      email: decoded.email || 'user@example.com',
+      name: decoded.name || 'Пользователь',
+      // avatar_url пока не используем, т.к. его нет в JWT
+      created_at: decoded.created_at || new Date().toISOString()
+    }
+    
+    set({ 
+      token, 
+      user,
+      isAuthenticated: true 
+    })
+    
+    console.log('User authenticated:', user)
   },
   
   logout: () => {
@@ -27,4 +62,3 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: null, token: null, isAuthenticated: false })
   },
 }))
-
