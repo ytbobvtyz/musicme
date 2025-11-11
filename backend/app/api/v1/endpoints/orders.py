@@ -45,20 +45,31 @@ async def get_orders(
     return orders
 
 
-@router.get("/{order_id}", response_model=OrderDetail)
+@router.get("/{order_id}", response_model=Order)
 async def get_order(
     order_id: UUID,
     db = Depends(get_db),
-    current_user: UserSchema = Depends(get_current_user)  # ⬅️ ДОБАВЬ ЗАВИСИМОСТЬ
+    current_user: UserSchema = Depends(get_current_user)
 ):
     """
     Получить детальную информацию о заказе
     """
-    order = await crud_order.get_by_id(db, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Заказ не найден")
-    
-    if order.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Нет доступа к этому заказу")
-    
-    return order
+    try:
+        print(f"🔍 GET ORDER - Order ID: {order_id}, User ID: {current_user.id}")
+        
+        order = await crud_order.get_by_id(db, order_id)
+        print(f"📦 Order found: {order is not None}")
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        if order.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этому заказу")
+        
+        return order
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"💥 Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
