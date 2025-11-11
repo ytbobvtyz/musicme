@@ -15,16 +15,21 @@ const OrdersPage = () => {
     }
   }, [isAuthenticated])
 
-  const loadOrders = async () => {
-    try {
-      const data = await getOrders()
-      setOrders(data.orders || [])
-    } catch (error) {
-      console.error('Ошибка при загрузке заказов:', error)
-    } finally {
-      setLoading(false)
-    }
+const loadOrders = async () => {
+  try {
+    
+    // Сравним оба источника токена
+    const storeToken = useAuthStore.getState().token
+    const localStorageToken = localStorage.getItem('token')
+    
+    const data = await getOrders()
+    
+    setOrders(data || [])
+  } catch (error) {
+  } finally {
+    setLoading(false)
   }
+}
 
   if (!isAuthenticated) {
     return (
