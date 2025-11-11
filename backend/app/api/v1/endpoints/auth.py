@@ -100,6 +100,7 @@ async def yandex_callback(
             "sub": str(user.id),
             "email": user.email,
             "name": user.name,
+            "is_admin":user.is_admin,
             "created_at": user.created_at.isoformat() if user.created_at else None
         }
         token = create_access_token(token_payload, expires_delta=jwt_expires)

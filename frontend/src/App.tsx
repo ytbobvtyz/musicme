@@ -6,6 +6,7 @@ import OrderPage from './pages/OrderPage'
 import OrdersPage from './pages/OrdersPage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import TrackPage from './pages/TrackPage'
+import AdminPage from './pages/AdminPage'
 import { useAuthStore } from './store/authStore'
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:orderId" element={<OrderDetailPage />} />
           <Route path="/tracks/:trackId" element={<TrackPage />} />
+          <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </Layout>
     </Router>

@@ -35,5 +35,22 @@ class CRUDOrder:
         )
         return result.scalar_one_or_none()
 
-
+    async def get_all(
+        self, 
+        db: AsyncSession, 
+        status_filter: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> List[OrderModel]:
+        """Получить все заказы (для админки)"""
+        query = select(OrderModel)
+        
+        if status_filter:
+            query = query.where(OrderModel.status == status_filter)
+            
+        query = query.order_by(OrderModel.created_at.desc()).limit(limit).offset(offset)
+        
+        result = await db.execute(query)
+        return result.scalars().all()
+        
 crud_order = CRUDOrder()
