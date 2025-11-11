@@ -44,8 +44,20 @@ class OrderDetail(Order):
     tracks: List[Track] = []
 
 
+# ⬇️⬇️⬇️ ИСПРАВЬ ЭТУ СХЕМУ ⬇️⬇️⬇️
 class AdminOrder(Order):
-    """Схема заказа для админки"""
-    user: User
+    """Схема заказа для админки с пользователем"""
+    user: Optional[User] = None  # Делаем опциональным для обратной совместимости
     tracks_count: int = 0
 
+    class Config:
+        from_attributes = True
+
+
+# ⬇️⬇️⬇️ ДОБАВЬ НОВУЮ СХЕМУ ⬇️⬇️⬇️
+class OrderWithUser(Order):
+    """Схема заказа с информацией о пользователе"""
+    user: Optional[User] = None
+
+    class Config:
+        from_attributes = True

@@ -19,27 +19,20 @@ interface Track {
     audio_mimetype: string | null
     
     order?: {
+      id: string
       theme: string
       recipient_name: string
+      genre: string
+      status: string
       user?: {
+        id: string
         email: string
-        name: string
+        name: string | null
+        avatar_url: string | null
       }
     }
   }
-  
-interface ExampleTrack {
-  id: string
-  title: string
-  genre: string
-  theme: string
-  description: string | null
-  audio_filename: string | null
-  audio_size: number | null
-  audio_mimetype: string | null
-  is_active: boolean
-  created_at: string
-}
+
 const TracksTab = () => {
   const { token } = useAuthStore()
   const [tracks, setTracks] = useState<Track[]>([])
@@ -47,7 +40,9 @@ const TracksTab = () => {
   const [selectedOrder, setSelectedOrder] = useState('')
   const [orders, setOrders] = useState<any[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newTrackUrl, setNewTrackUrl] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [trackTitle, setTrackTitle] = useState('')
+  const [uploading, setUploading] = useState(false)
   const [ordersLoading, setOrdersLoading] = useState(false)
 
   useEffect(() => {
@@ -82,93 +77,132 @@ const TracksTab = () => {
 
   const fetchTracks = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/admin/tracks', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      console.log("Starting data fetch...")
+      
+      // Используем простой эндпоинт для отладки
+      const tracksResponse = await fetch('http://localhost:8000/api/v1/admin/tracks-debug-simple', {
+        headers: { 'Authorization': `Bearer ${token}` }
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        setTracks(data)
+  
+      console.log("Tracks response status:", tracksResponse.status)
+  
+      if (tracksResponse.ok) {
+        const tracksData = await tracksResponse.json()
         
-        // Также загружаем заказы для фильтра
-        const ordersResponse = await fetch('http://localhost:8000/api/v1/admin/orders', {
-          headers: {
-            'Authorization': `Bearer ${token}`
+        console.log('=== SIMPLE TRACKS DATA ===')
+        console.log('Tracks:', tracksData)
+  
+        // Проверяем что tracksData - массив, а не объект с ошибкой
+        if (Array.isArray(tracksData)) {
+          // Загружаем заказы отдельно
+          const ordersResponse = await fetch('http://localhost:8000/api/v1/admin/orders', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+  
+          if (ordersResponse.ok) {
+            const ordersData = await ordersResponse.json()
+            
+            console.log('=== ORDERS DATA ===')
+            console.log('Orders:', ordersData)
+  
+            // Создаем мапу заказов
+            const ordersMap = new Map()
+            ordersData.forEach((order: any) => {
+              ordersMap.set(order.id, order)
+            })
+  
+            // Обогащаем треки данными заказов
+            const enrichedTracks = tracksData.map((track: any) => ({
+              ...track,
+              order: ordersMap.get(track.order_id) || null
+            }))
+  
+            console.log('=== ENRICHED TRACKS ===')
+            console.log('Enriched tracks:', enrichedTracks)
+  
+            setTracks(enrichedTracks)
+            setOrders(ordersData)
+          } else {
+            // Если заказы не загрузились, используем только треки
+            setTracks(tracksData)
           }
-        })
-        
-        if (ordersResponse.ok) {
-          const ordersData = await ordersResponse.json()
-          setOrders(ordersData)
+        } else {
+          // Если tracksData не массив, показываем ошибку
+          console.error('Tracks data is not array:', tracksData)
+          setTracks([])
         }
+      } else {
+        console.error('Tracks response not ok:', tracksResponse.status)
+        setTracks([])
       }
     } catch (error) {
-      console.error('Error fetching tracks:', error)
+      console.error('Error fetching data:', error)
+      setTracks([])
     } finally {
       setLoading(false)
     }
   }
 
-  const addTrackToOrder = async (orderId: string) => {
-    // Извлекаем suno_id из URL
-    const sunoId = extractSunoId(newTrackUrl.trim());
-    
-    if (!sunoId) {
-      alert('Неверный формат URL Suno. Пример: https://suno.com/s/mT7R9CyNaLBHJ5as');
-      return;
+  const handleFileUpload = async (orderId: string) => {
+    if (!selectedFile) {
+      alert('Выберите файл для загрузки')
+      return
     }
-  
+
+    if (!orderId) {
+      alert('Выберите заказ')
+      return
+    }
+
+    setUploading(true)
+
+    const formData = new FormData()
+    formData.append('file', selectedFile)
+    if (trackTitle.trim()) {
+      formData.append('title', trackTitle.trim())
+    }
+
     try {
       const response = await fetch(
-        `http://localhost:8000/api/v1/admin/orders/${orderId}/tracks`,
+        `http://localhost:8000/api/v1/admin/orders/${orderId}/tracks/upload`,
         {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            // Не устанавливай Content-Type - браузер сделает это сам
           },
-          body: JSON.stringify({
-            suno_id: sunoId,
-            preview_url: newTrackUrl.trim(), // Используем как preview_url
-            full_url: newTrackUrl.trim(),    // И как full_url
-            title: `Трек ${sunoId}`,
-            status: "ready"
-          })
+          body: formData
         }
       )
-  
+
       console.log('Response status:', response.status)
       
-      const responseText = await response.text()
-      console.log('Raw response:', responseText)
-  
       if (response.ok) {
-        setNewTrackUrl('')
+        // Сбрасываем форму
+        setSelectedFile(null)
+        setTrackTitle('')
         setSelectedOrder('')
         setShowAddForm(false)
+        
+        // Обновляем список треков
         fetchTracks()
-        alert('Трек успешно добавлен!')
+        alert('Трек успешно загружен!')
       } else {
+        const errorText = await response.text()
+        console.error('Upload error:', errorText)
         try {
-          const errorData = JSON.parse(responseText)
-          console.log('Parsed error:', errorData)
-          alert(`Ошибка: ${errorData.detail || JSON.stringify(errorData)}`)
+          const errorData = JSON.parse(errorText)
+          alert(`Ошибка: ${errorData.detail || 'Неизвестная ошибка'}`)
         } catch {
-          alert(`Ошибка: ${responseText || `HTTP ${response.status}`}`)
+          alert(`Ошибка: ${errorText || `HTTP ${response.status}`}`)
         }
       }
     } catch (error) {
-      console.error('Error adding track:', error)
-      alert('Ошибка сети при добавлении трека')
+      console.error('Error uploading track:', error)
+      alert('Ошибка сети при загрузке трека')
+    } finally {
+      setUploading(false)
     }
-  }
-  
-  // Функция для извлечения suno_id из URL
-  const extractSunoId = (url: string): string | null => {
-    const match = url.match(/suno\.com\/s\/([a-zA-Z0-9]+)/);
-    return match ? match[1] : null;
   }
 
   const deleteTrack = async (trackId: string) => {
@@ -204,7 +238,7 @@ const TracksTab = () => {
     }
     return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800'
   }
-  
+
   const getStatusText = (status: string) => {
     const statusMap: { [key: string]: string } = {
       generating: 'Генерируется',
@@ -231,15 +265,15 @@ const TracksTab = () => {
           onClick={handleShowAddForm}
           className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
         >
-          + Добавить трек
+          + Загрузить трек
         </button>
       </div>
 
-      {/* Форма добавления трека */}
+      {/* Форма загрузки трека */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium mb-4">Добавить трек к заказу</h3>
+            <h3 className="text-lg font-medium mb-4">Загрузить аудио файл</h3>
             
             <div className="space-y-4">
               {ordersLoading ? (
@@ -259,31 +293,62 @@ const TracksTab = () => {
                     ))}
                   </select>
 
-                  <input
-                    type="url"
-                    placeholder="URL аудиофайла"
-                    value={newTrackUrl}
-                    onChange={(e) => setNewTrackUrl(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Название трека (необязательно)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Название трека"
+                      value={trackTitle}
+                      onChange={(e) => setTrackTitle(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Аудио файл *
+                    </label>
+                    <input
+                      type="file"
+                      accept="audio/mpeg,audio/wav,audio/*"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                    {selectedFile && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded">
+                        <p className="text-sm text-gray-700">
+                          <strong>Файл:</strong> {selectedFile.name}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          <strong>Размер:</strong> {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          <strong>Тип:</strong> {selectedFile.type || 'Не определен'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex justify-end space-x-3">
                     <button
                       onClick={() => {
                         setShowAddForm(false)
                         setSelectedOrder('')
-                        setNewTrackUrl('')
+                        setSelectedFile(null)
+                        setTrackTitle('')
                       }}
                       className="px-4 py-2 text-gray-600 hover:text-gray-800"
                     >
                       Отмена
                     </button>
                     <button
-                      onClick={() => addTrackToOrder(selectedOrder)}
-                      disabled={!selectedOrder || !newTrackUrl.trim()}
+                      onClick={() => handleFileUpload(selectedOrder)}
+                      disabled={!selectedOrder || !selectedFile || uploading}
                       className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
                     >
-                      Добавить
+                      {uploading ? 'Загрузка...' : 'Загрузить'}
                     </button>
                   </div>
                 </>
@@ -321,56 +386,70 @@ const TracksTab = () => {
         </div>
       ) : (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ID трека
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Заказ / Получатель
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Пользователь
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Название
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Suno ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Статус
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Аудио
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Действия
-                    </th>
+                  </th>
                 </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {filteredTracks.map((track) => (
-                    <tr key={track.id} className="hover:bg-gray-50">
+                  <tr key={track.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {track.id.slice(0, 8)}...
+                      {track.id.slice(0, 8)}...
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div>
+                      <div>
                         <div className="font-medium">{track.order?.theme || 'Неизвестно'}</div>
                         <div className="text-xs text-gray-400">
-                            Для: {track.order?.recipient_name || 'Не указано'}
+                          Для: {track.order?.recipient_name || 'Не указано'}
                         </div>
-                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {track.order?.user?.name || track.order?.user?.email || 'Неизвестно'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {track.title || 'Без названия'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(track.status)}`}>
+                        {getStatusText(track.status)}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {track.audio_filename ? (
                             <div className="flex items-center space-x-2">
-                            <audio controls className="h-8">
+                            <audio 
+                                controls 
+                                className="h-8"
+                                onError={(e) => console.error('Audio error for track:', track.id, e)}
+                                onCanPlay={() => console.log('Audio can play:', track.id)}
+                            >
                                 <source 
-                                src={`http://localhost:8000/api/v1/admin/tracks/${track.id}/audio`} 
-                                type="audio/mpeg" 
+                                src={`http://localhost:8000/api/v1/admin/tracks/${track.id}/audio-public`}
+                                type={track.audio_mimetype || "audio/mpeg"} 
                                 />
                                 Ваш браузер не поддерживает аудио элементы.
                             </audio>
@@ -384,95 +463,19 @@ const TracksTab = () => {
                             <span className="text-gray-400">Нет аудио</span>
                         )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(track.status)}`}>
-                        {getStatusText(track.status)}
-                        </span>
-                    </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {track.full_url ? (
-                                <div className="flex flex-col space-y-2">
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-xs text-gray-500">Полная:</span>
-                                    <audio 
-                                    controls 
-                                    className="h-8"
-                                    onError={(e) => {
-                                        console.error('Audio error:', e);
-                                        console.log('Audio URL:', track.full_url);
-                                    }}
-                                    onCanPlay={(e) => {
-                                        console.log('Audio can play:', track.full_url);
-                                    }}
-                                    >
-                                    <source src={track.full_url} type="audio/mpeg" />
-                                    Ваш браузер не поддерживает аудио элементы.
-                                    </audio>
-                                    <a 
-                                    href={track.full_url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-blue-500 hover:text-blue-700"
-                                    >
-                                    ↗
-                                    </a>
-                                </div>
-                                {track.preview_url && track.preview_url !== track.full_url && (
-                                    <div className="flex items-center space-x-2">
-                                    <span className="text-xs text-gray-500">Превью:</span>
-                                    <audio 
-                                        controls 
-                                        className="h-8"
-                                        onError={(e) => console.error('Preview error:', e)}
-                                    >
-                                        <source src={track.preview_url} type="audio/mpeg" />
-                                    </audio>
-                                    <a 
-                                        href={track.preview_url} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-blue-500 hover:text-blue-700"
-                                    >
-                                        ↗
-                                    </a>
-                                    </div>
-                                )}
-                                </div>
-                            ) : track.preview_url ? (
-                                <div className="flex items-center space-x-2">
-                                <audio 
-                                    controls 
-                                    className="h-8"
-                                    onError={(e) => console.error('Audio error:', e)}
-                                >
-                                    <source src={track.preview_url} type="audio/mpeg" />
-                                    Ваш браузер не поддерживает аудио элементы.
-                                </audio>
-                                <a 
-                                    href={track.preview_url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-blue-500 hover:text-blue-700"
-                                >
-                                    ↗
-                                </a>
-                                </div>
-                            ) : (
-                                <span className="text-gray-400">Нет аудио</span>
-                            )}
-                        </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
+                      <button
                         onClick={() => deleteTrack(track.id)}
                         className="text-red-600 hover:text-red-900"
-                        >
+                      >
                         Удалить
-                        </button>
+                      </button>
                     </td>
-                    </tr>
+                  </tr>
                 ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+            </div>
         </div>
       )}
     </div>

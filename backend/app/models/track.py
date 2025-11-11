@@ -25,12 +25,18 @@ class Track(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False, index=True)
     title = Column(String, nullable=True)
-    suno_id = Column(String, nullable=True, index=True)  # ID трека в Suno API
-    preview_url = Column(String, nullable=True)  # URL превью (60 секунд)
-    full_url = Column(String, nullable=True)  # URL полной версии
-    duration = Column(Integer, nullable=True)  # Длительность в секундах
+    suno_id = Column(String, nullable=True, index=True)
+    preview_url = Column(String, nullable=True)
+    full_url = Column(String, nullable=True)
+    duration = Column(Integer, nullable=True)
     is_paid = Column(Boolean, default=False, nullable=False)
     status = Column(String, nullable=False, default=TrackStatus.GENERATING, index=True)
+    
+    # ДОБАВЬ ЭТИ ПОЛЯ:
+    audio_filename = Column(String, nullable=True)
+    audio_size = Column(Integer, nullable=True)
+    audio_mimetype = Column(String, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Связи

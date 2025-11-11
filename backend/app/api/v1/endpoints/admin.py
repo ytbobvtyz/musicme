@@ -3,17 +3,18 @@
 """
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import os
 
+from sqlalchemy.orm import selectinload, joinedload
 from app.core.database import get_db
 from app.core.deps import get_current_admin
-from app.schemas.order import Order, OrderDetail
-from app.schemas.track import Track, TrackCreate, TrackUpdate, TrackAdminCreate
+from app.schemas.order import Order, AdminOrder, OrderWithUser, OrderDetail
+from app.schemas.track import Track, TrackWithOrder, TrackAdminCreate, TrackSimple
 from app.schemas.example_track import ExampleTrack, ExampleTrackCreate, ExampleTrackUpdate
 from app.models.user import User as UserModel
 from app.models.track import Track as TrackModel  # ⬅️ ДОБАВЬ ЭТОТ ИМПОРТ
@@ -22,9 +23,108 @@ from app.crud.order import crud_order
 from app.crud.track import crud_track
 from app.crud.example_track import crud_example_track
 from app.core.file_storage import file_storage
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
+@router.get("/tracks/{track_id}/audio-public")
+async def get_track_audio_public(
+    track_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить аудио файл трека (публичный доступ)
+    """
+    try:
+        # Находим трек
+        track_query = select(TrackModel).where(TrackModel.id == track_id)
+        track_result = await db.execute(track_query)
+        track = track_result.scalar_one_or_none()
+        
+        if not track or not track.audio_filename:
+            raise HTTPException(status_code=404, detail="Трек или аудио файл не найден")
+        
+        file_path = file_storage.get_file_path(track.audio_filename, "audio")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Аудио файл не найден на диске")
+        
+        return FileResponse(
+            file_path,
+            media_type=track.audio_mimetype or "audio/mpeg",
+            filename=f"{track.title or 'track'}.mp3"
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/tracks-debug-simple")
+async def get_tracks_debug_simple(
+    db: AsyncSession = Depends(get_db),
+    admin: UserModel = Depends(get_current_admin)
+):
+    """
+    Отладочный эндпоинт - возвращает простой JSON
+    """
+    try:
+        # Используем await для асинхронного запроса
+        from sqlalchemy import text
+        
+        # Простой SQL запрос чтобы избежать проблем с ORM
+        result = await db.execute(text("""
+            SELECT id, order_id, title, status, audio_filename, audio_size, audio_mimetype, created_at
+            FROM tracks 
+            ORDER BY created_at DESC
+        """))
+        rows = result.fetchall()
+        
+        # Преобразуем в словари
+        tracks_data = []
+        for row in rows:
+            tracks_data.append({
+                "id": str(row[0]),
+                "order_id": str(row[1]),
+                "title": row[2],
+                "status": row[3],
+                "audio_filename": row[4],
+                "audio_size": row[5],
+                "audio_mimetype": row[6],
+                "created_at": row[7].isoformat() if row[7] else None
+            })
+        
+        return tracks_data
+        
+    except Exception as e:
+        print(f"Error in tracks-debug-simple: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return {"error": str(e)}
+        
+# ===== Эндпоинт для гарантированного получения всей информации по трекам =====
+@router.get("/tracks-detailed", response_model=List[TrackSimple])
+async def get_tracks_detailed(
+    db: AsyncSession = Depends(get_db),
+    admin: UserModel = Depends(get_current_admin)
+):
+    """
+    Получить треки (упрощенная версия для отладки)
+    """
+    try:
+        print("=== TRACKS DETAILED SIMPLIFIED ===")
+        
+        query = select(TrackModel)
+        result = await db.execute(query)
+        tracks = result.scalars().all()
+        
+        print(f"Found {len(tracks)} tracks")
+        
+        # Возвращаем только основные поля
+        return tracks
+        
+    except Exception as e:
+        print(f"Error in tracks-detailed: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 # ===== Эндпоинты для загрукзи файлов =====
 
 @router.post("/orders/{order_id}/tracks/upload", response_model=Track)
@@ -39,14 +139,17 @@ async def upload_track_to_order(
     Загрузить MP3 файл для заказа (админ)
     """
     # Проверяем заказ
-    order = await crud_order.get_by_id(db, order_id)
+    order_query = select(OrderModel).where(OrderModel.id == order_id)
+    order_result = await db.execute(order_query)
+    order = order_result.scalar_one_or_none()
+    
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден")
     
     # Сохраняем файл
     file_info = await file_storage.save_audio_file(file, "audio")
     
-    # Создаем запись в БД
+    # Создаем трек
     db_track = TrackModel(
         order_id=order_id,
         title=title or file_info["original_name"],
@@ -61,32 +164,9 @@ async def upload_track_to_order(
     
     return db_track
 
-@router.get("/tracks/{track_id}/audio")
-async def get_track_audio(
-    track_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """
-    Получить аудио файл трека
-    """
-    track = await crud_track.get_by_id(db, track_id)
-    if not track or not track.audio_filename:
-        raise HTTPException(status_code=404, detail="Трек или аудио файл не найден")
-    
-    file_path = file_storage.get_file_path(track.audio_filename, "audio")
-    if not file_path:
-        raise HTTPException(status_code=404, detail="Аудио файл не найден")
-    
-    return FileResponse(
-        file_path,
-        media_type=track.audio_mimetype or "audio/mpeg",
-        filename=f"{track.title or 'track'}.mp3"
-    )
-
 # ===== Эндпоинты для заказов =====
 
-@router.get("/orders", response_model=List[Order])
+@router.get("/orders", response_model=List[OrderWithUser])
 async def get_all_orders(
     status: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=100),
@@ -95,11 +175,20 @@ async def get_all_orders(
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Получить все заказы (админ)
+    Получить все заказы (админ) с информацией о пользователях
     """
-    # TODO: Реализовать получение всех заказов с фильтрами
-    # Временная заглушка
-    orders = await crud_order.get_all(db, status_filter=status, limit=limit, offset=offset)
+    from sqlalchemy.orm import selectinload
+    
+    query = select(OrderModel).options(
+        selectinload(OrderModel.user)
+    )
+    
+    if status:
+        query = query.where(OrderModel.status == status)
+    
+    query = query.limit(limit).offset(offset)
+    result = await db.execute(query)
+    orders = result.scalars().all()
     return orders
 
 
@@ -142,7 +231,7 @@ async def update_order_status(
 
 # ===== Эндпоинты для треков =====
 
-@router.get("/tracks", response_model=List[Track])
+@router.get("/tracks", response_model=List[TrackWithOrder])
 async def get_all_tracks(
     order_id: Optional[UUID] = Query(None),
     status: Optional[str] = Query(None),
@@ -150,18 +239,12 @@ async def get_all_tracks(
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Получить все треки (админ)
+    Получить все треки (админ) с информацией о заказах
     """
-    from app.models.order import Order
-    from app.models.user import User
+    from sqlalchemy.orm import selectinload
     
-    query = (
-        select(TrackModel)
-        .join(Order, TrackModel.order_id == Order.id)
-        .join(User, Order.user_id == User.id)
-        .options(
-            selectinload(TrackModel.order).selectinload(Order.user)
-        )
+    query = select(TrackModel).options(
+        selectinload(TrackModel.order).selectinload(OrderModel.user)
     )
     
     if order_id:
@@ -170,7 +253,7 @@ async def get_all_tracks(
         query = query.where(TrackModel.status == status)
         
     result = await db.execute(query)
-    tracks = result.scalars().all()
+    tracks = result.unique().scalars().all()
     return tracks
 
 
@@ -214,18 +297,58 @@ async def delete_track_admin(
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Удалить трек (админ)
+    Удалить трек (админ) с удалением файла
     """
-    result = await db.execute(
-        delete(TrackModel).where(TrackModel.id == track_id)
-    )
-    await db.commit()
-    
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Трек не найден")
-    
-    return {"message": "Трек удален"}
-
+    try:
+        # Сначала находим трек чтобы получить имя файла
+        track_query = select(TrackModel).where(TrackModel.id == track_id)
+        track_result = await db.execute(track_query)
+        track = track_result.scalar_one_or_none()
+        
+        if not track:
+            raise HTTPException(status_code=404, detail="Трек не найден")
+        
+        print(f"=== DELETING TRACK {track_id} ===")
+        print(f"Track title: {track.title}")
+        print(f"Audio filename: {track.audio_filename}")
+        
+        # Удаляем файл с диска если он существует
+        file_deleted = False
+        if track.audio_filename:
+            try:
+                file_deleted = file_storage.delete_file(track.audio_filename, "audio")
+                print(f"File deletion result: {file_deleted}")
+            except Exception as e:
+                print(f"Warning: Error deleting file: {e}")
+                # Продолжаем удаление записи из БД даже если файл не удалился
+        else:
+            print("No audio file to delete")
+        
+        # Удаляем запись из БД
+        result = await db.execute(
+            delete(TrackModel).where(TrackModel.id == track_id)
+        )
+        await db.commit()
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Трек не найден в БД")
+        
+        # Формируем сообщение в зависимости от результата
+        if file_deleted:
+            message = "Трек и аудио файл удалены"
+        else:
+            message = "Трек удален (файл не найден или не удален)"
+            
+        print("Track deleted successfully")
+        return {"message": message}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting track: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Ошибка при удалении трека: {str(e)}")
 
 # ===== Эндпоинты для примеров треков =====
 

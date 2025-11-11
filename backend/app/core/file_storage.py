@@ -1,4 +1,3 @@
-# app/core/file_storage.py
 import os
 import uuid
 import shutil
@@ -56,11 +55,18 @@ class FileStorage:
     
     def delete_file(self, filename: str, subdirectory: str = "audio") -> bool:
         """Удалить файл"""
-        file_path = self.get_file_path(filename, subdirectory)
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-            return True
-        return False
+        try:
+            file_path = self.get_file_path(filename, subdirectory)
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"File deleted successfully: {file_path}")
+                return True
+            else:
+                print(f"File not found: {filename} in {subdirectory}")
+                return False
+        except Exception as e:
+            print(f"Error deleting file {filename}: {e}")
+            return False
 
 # Создаем глобальный экземпляр
 file_storage = FileStorage()
