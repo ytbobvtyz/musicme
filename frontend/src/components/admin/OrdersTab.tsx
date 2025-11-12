@@ -1,23 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
+import { Order, OrderDisplay } from '@/types/order'
+import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 
-interface Order {
-  id: string
-  user_id: string
-  theme: string
-  genre: string
-  recipient_name: string
-  status: string
-  created_at: string
-  user?: {
-    email: string
-    name: string
-  }
-}
+// Функция преобразования Order в OrderDisplay
+const orderToDisplay = (order: Order): OrderDisplay => ({
+  ...order,
+  theme: order.theme?.name || 'Неизвестно',
+  genre: order.genre?.name || 'Неизвестно',
+})
 
 const OrdersTab = () => {
   const { token } = useAuthStore()
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<OrderDisplay[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedStatus, setSelectedStatus] = useState('')
 
@@ -39,8 +34,9 @@ const OrdersTab = () => {
       })
 
       if (response.ok) {
-        const data = await response.json()
-        setOrders(data)
+        const data: Order[] = await response.json()
+        const displayOrders = data.map(orderToDisplay)
+        setOrders(displayOrders)
       }
     } catch (error) {
       console.error('Error fetching orders:', error)
@@ -70,32 +66,6 @@ const OrdersTab = () => {
     } catch (error) {
       console.error('Error updating order status:', error)
     }
-  }
-
-  const getStatusColor = (status: string) => {
-    const colors = {
-      draft: 'bg-gray-100 text-gray-800',
-      waiting_interview: 'bg-yellow-100 text-yellow-800',
-      in_progress: 'bg-blue-100 text-blue-800',
-      ready: 'bg-green-100 text-green-800',
-      paid: 'bg-purple-100 text-purple-800',
-      completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800'
-    }
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800'
-  }
-
-  const getStatusText = (status: string) => {
-    const statusMap: { [key: string]: string } = {
-      draft: 'Черновик',
-      waiting_interview: 'Ожидает интервью',
-      in_progress: 'В работе',
-      ready: 'Готов',
-      paid: 'Оплачен',
-      completed: 'Завершен',
-      cancelled: 'Отменен'
-    }
-    return statusMap[status] || status
   }
 
   if (loading) {
@@ -140,6 +110,9 @@ const OrdersTab = () => {
                   Тема
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Жанр
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Для кого
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -163,10 +136,13 @@ const OrdersTab = () => {
                     {order.theme}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {order.genre}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {order.recipient_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                    <span className={getStatusClasses(order.status)}>
                       {getStatusText(order.status)}
                     </span>
                   </td>

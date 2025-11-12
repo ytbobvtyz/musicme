@@ -1,18 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
-
-interface ExampleTrack {
-  id: string
-  title: string
-  genre: string
-  theme: string
-  description: string | null
-  audio_filename: string | null
-  audio_size: number | null
-  audio_mimetype: string | null
-  is_active: boolean
-  created_at: string
-}
+import { ExampleTrack } from '@/types/exampleTrack'
 
 const ExamplesTab = () => {
   const { token } = useAuthStore()
@@ -21,23 +9,38 @@ const ExamplesTab = () => {
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [uploading, setUploading] = useState(false)
   
-  // Форма загрузки
+  // Форма загрузки - ОБНОВЛЯЕМ НА UUID
   const [title, setTitle] = useState('')
-  const [genre, setGenre] = useState('')
-  const [theme, setTheme] = useState('')
+  const [genreId, setGenreId] = useState('')  // ← МЕНЯЕМ НА ID
+  const [themeId, setThemeId] = useState('')  // ← МЕНЯЕМ НА ID
   const [description, setDescription] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [themes, setThemes] = useState<any[]>([])
+  const [genres, setGenres] = useState<any[]>([])
 
   useEffect(() => {
     fetchExampleTracks()
+    fetchThemesAndGenres()
   }, [])
+
+  const fetchThemesAndGenres = async () => {
+    try {
+      const [themesRes, genresRes] = await Promise.all([
+        fetch('http://localhost:8000/api/v1/themes'),
+        fetch('http://localhost:8000/api/v1/genres')
+      ])
+      
+      if (themesRes.ok) setThemes(await themesRes.json())
+      if (genresRes.ok) setGenres(await genresRes.json())
+    } catch (error) {
+      console.error('Error fetching themes/genres:', error)
+    }
+  }
 
   const fetchExampleTracks = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/v1/admin/example-tracks', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       })
 
       if (response.ok) {
@@ -52,7 +55,7 @@ const ExamplesTab = () => {
   }
 
   const handleUpload = async () => {
-    if (!selectedFile || !title || !genre || !theme) {
+    if (!selectedFile || !title || !genreId || !themeId) {
       alert('Заполните все обязательные поля')
       return
     }
@@ -62,8 +65,8 @@ const ExamplesTab = () => {
     const formData = new FormData()
     formData.append('file', selectedFile)
     formData.append('title', title)
-    formData.append('genre', genre)
-    formData.append('theme', theme)
+    formData.append('genre_id', genreId)  // ← МЕНЯЕМ НА ID
+    formData.append('theme_id', themeId)  // ← МЕНЯЕМ НА ID
     if (description) {
       formData.append('description', description)
     }
@@ -73,9 +76,7 @@ const ExamplesTab = () => {
         'http://localhost:8000/api/v1/admin/example-tracks/upload',
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
           body: formData
         }
       )
@@ -83,13 +84,12 @@ const ExamplesTab = () => {
       if (response.ok) {
         // Сбрасываем форму
         setTitle('')
-        setGenre('')
-        setTheme('')
+        setGenreId('')
+        setThemeId('')
         setDescription('')
         setSelectedFile(null)
         setShowUploadForm(false)
         
-        // Обновляем список
         fetchExampleTracks()
         alert('Пример трека успешно загружен!')
       } else {
@@ -160,23 +160,35 @@ const ExamplesTab = () => {
                 required
               />
 
-              <input
-                type="text"
-                placeholder="Жанр *"
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
+              {/* СЕЛЕКТ ДЛЯ ТЕМЫ */}
+              <select
+                value={themeId}
+                onChange={(e) => setThemeId(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
-              />
+              >
+                <option value="">Выберите тему *</option>
+                {themes.map(theme => (
+                  <option key={theme.id} value={theme.id}>
+                    {theme.name}
+                  </option>
+                ))}
+              </select>
 
-              <input
-                type="text"
-                placeholder="Тема *"
-                value={theme}
-                onChange={(e) => setTheme(e.target.value)}
+              {/* СЕЛЕКТ ДЛЯ ЖАНРА */}
+              <select
+                value={genreId}
+                onChange={(e) => setGenreId(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
-              />
+              >
+                <option value="">Выберите жанр *</option>
+                {genres.map(genre => (
+                  <option key={genre.id} value={genre.id}>
+                    {genre.name}
+                  </option>
+                ))}
+              </select>
 
               <textarea
                 placeholder="Описание (необязательно)"
@@ -209,8 +221,6 @@ const ExamplesTab = () => {
                   onClick={() => {
                     setShowUploadForm(false)
                     setTitle('')
-                    setGenre('')
-                    setTheme('')
                     setDescription('')
                     setSelectedFile(null)
                   }}
@@ -220,7 +230,7 @@ const ExamplesTab = () => {
                 </button>
                 <button
                   onClick={handleUpload}
-                  disabled={!title || !genre || !theme || !selectedFile || uploading}
+                  disabled={!title || !selectedFile || uploading}
                   className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
                 >
                   {uploading ? 'Загрузка...' : 'Загрузить'}
@@ -266,8 +276,8 @@ const ExamplesTab = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div>
-                      <div className="font-medium">{track.genre}</div>
-                      <div className="text-xs text-gray-400">{track.theme}</div>
+                      <div className="font-medium">{track.genre?.name || 'Неизвестно'}</div>
+                      <div className="text-xs text-gray-400">{track.theme?.name || 'Неизвестно'}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">

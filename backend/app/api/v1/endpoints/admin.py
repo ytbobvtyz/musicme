@@ -9,8 +9,8 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 from fastapi.responses import FileResponse, JSONResponse
 import os
-
 from sqlalchemy.orm import selectinload, joinedload
+
 from app.core.database import get_db
 from app.core.deps import get_current_admin
 from app.schemas.order import Order, AdminOrder, OrderWithUser, OrderDetail
@@ -23,7 +23,7 @@ from app.crud.order import crud_order
 from app.crud.track import crud_track
 from app.crud.example_track import crud_example_track
 from app.core.file_storage import file_storage
-from sqlalchemy.orm import selectinload
+from app.models.example_track import ExampleTrack as ExampleTrackModel
 
 router = APIRouter()
 
@@ -175,18 +175,18 @@ async def get_all_orders(
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Получить все заказы (админ) с информацией о пользователях
+    Получить все заказы (админ) с информацией о пользователях и связями
     """
-    from sqlalchemy.orm import selectinload
-    
     query = select(OrderModel).options(
-        selectinload(OrderModel.user)
+        selectinload(OrderModel.user),
+        selectinload(OrderModel.theme),   # ← ДОБАВЛЯЕМ
+        selectinload(OrderModel.genre)    # ← ДОБАВЛЯЕМ
     )
     
     if status:
         query = query.where(OrderModel.status == status)
     
-    query = query.limit(limit).offset(offset)
+    query = query.order_by(OrderModel.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
     orders = result.scalars().all()
     return orders
@@ -239,12 +239,12 @@ async def get_all_tracks(
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Получить все треки (админ) с информацией о заказах
+    Получить все треки (админ) с информацией о заказах и связями
     """
-    from sqlalchemy.orm import selectinload
-    
     query = select(TrackModel).options(
-        selectinload(TrackModel.order).selectinload(OrderModel.user)
+        selectinload(TrackModel.order).selectinload(OrderModel.user),
+        selectinload(TrackModel.order).selectinload(OrderModel.theme),  # ← ДОБАВЛЯЕМ
+        selectinload(TrackModel.order).selectinload(OrderModel.genre)   # ← ДОБАВЛЯЕМ
     )
     
     if order_id:
@@ -354,6 +354,7 @@ async def delete_track_admin(
 
 @router.get("/example-tracks", response_model=List[ExampleTrack])
 async def get_example_tracks_admin(
+    # Временно оставляем старые параметры для обратной совместимости
     genre: Optional[str] = Query(None),
     theme: Optional[str] = Query(None),
     active_only: bool = Query(True),
@@ -361,11 +362,11 @@ async def get_example_tracks_admin(
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Получить все примеры треков (админ)
+    Получить все примеры треков (админ) с загрузкой связей
     """
+    # Используем обновленный CRUD с загрузкой связей
     tracks = await crud_example_track.get_all(db, genre=genre, theme=theme, active_only=active_only)
     return tracks
-
 
 @router.post("/example-tracks", response_model=ExampleTrack)
 async def create_example_track(
@@ -401,32 +402,44 @@ async def update_example_track(
 async def upload_example_track(
     file: UploadFile = File(...),
     title: str = Form(...),
-    genre: str = Form(...),
-    theme: str = Form(...),
+    theme_id: str = Form(...),  # ← МЕНЯЕМ НА theme_id
+    genre_id: str = Form(...),  # ← МЕНЯЕМ НА genre_id
     description: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Загрузить пример трека (админ)
+    Загрузить пример трека (админ) с новой структурой
     """
+    # Валидируем UUID
+    from uuid import UUID
+    try:
+        theme_uuid = UUID(theme_id)
+        genre_uuid = UUID(genre_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный формат theme_id или genre_id")
+    
     # Сохраняем файл
     file_info = await file_storage.save_audio_file(file, "examples")
     
-    # Создаем запись в БД
-    db_track = ExampleTrack(
+    # Создаем запись в БД с новой структурой
+    db_track = ExampleTrackModel(
         title=title,
-        genre=genre,
-        theme=theme,
+        theme_id=theme_uuid,  # ← ИСПОЛЬЗУЕМ UUID
+        genre_id=genre_uuid,  # ← ИСПОЛЬЗУЕМ UUID
         description=description,
         audio_filename=file_info["filename"],
         audio_size=file_info["size"],
         audio_mimetype=file_info["mimetype"],
         is_active=True
     )
+    
     db.add(db_track)
     await db.commit()
     await db.refresh(db_track)
+    
+    # Загружаем связи для возврата полных данных
+    await db.refresh(db_track, ['theme', 'genre'])
     
     return db_track
 
@@ -469,7 +482,7 @@ async def delete_example_track(
     if track.audio_filename:
         file_storage.delete_file(track.audio_filename, "examples")
     
-    # Удаляем запись из БД
+    # Удаляем запись из БД через CRUD
     await crud_example_track.delete(db, track_id)
     
     return {"message": "Пример трека удален"}

@@ -10,25 +10,21 @@ from app.schemas.genre import Genre
 
 
 class ExampleTrackBase(BaseModel):
-    theme: str
+    title: str
     description: Optional[str] = None
-    audio_url: str
-    suno_id: Optional[str] = None
-    duration: Optional[int] = None
-    sort_order: int = 0
-    theme_id: UUID
-    genre_id: UUID
+    theme_id: UUID  # ← ИСПРАВЛЕНО: убрали дублирование
+    genre_id: UUID  # ← ИСПРАВЛЕНО: убрали дублирование
 
-class ExampleTrackCreate(ExampleTrackBase):  # ⬅️ ДОБАВЬ ЭТОТ КЛАСС
+
+class ExampleTrackCreate(ExampleTrackBase):
     pass
 
 
 class ExampleTrackUpdate(BaseModel):
     title: Optional[str] = None
-    genre: Optional[str] = None
-    theme: Optional[str] = None
+    theme_id: Optional[UUID] = None  # ← ИСПРАВЛЕНО: теперь UUID
+    genre_id: Optional[UUID] = None  # ← ИСПРАВЛЕНО: теперь UUID
     description: Optional[str] = None
-    audio_url: Optional[str] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
 
@@ -38,8 +34,18 @@ class ExampleTrack(ExampleTrackBase):
     is_active: bool
     created_at: datetime
 
+    # Связи
     theme: Optional[Theme] = None
     genre: Optional[Genre] = None
+
+    # Audio fields
+    audio_filename: Optional[str] = None
+    audio_size: Optional[int] = None
+    audio_mimetype: Optional[str] = None
+    audio_url: Optional[str] = None  # ← для обратной совместимости
+    suno_id: Optional[str] = None    # ← для обратной совместимости
+    duration: Optional[int] = None   # ← для обратной совместимости
+    sort_order: int = 0              # ← для обратной совместимости
 
     class Config:
         from_attributes = True

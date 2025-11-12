@@ -12,17 +12,28 @@ interface Track {
     created_at: string
     duration: number | null
     is_paid: boolean
-    
-    // Новые поля для хранения файлов
+    // поля для хранения файлов
     audio_filename: string | null
     audio_size: number | null
     audio_mimetype: string | null
     
     order?: {
       id: string
-      theme: string
+      theme?: {  // ← объект темы
+        id: string
+        name: string
+        description?: string
+        is_active: boolean
+        created_at: string
+      }
       recipient_name: string
-      genre: string
+      genre?: {  // ← объект жанра
+        id: string
+        name: string  
+        description?: string
+        is_active: boolean
+        created_at: string
+      }
       status: string
       user?: {
         id: string
@@ -288,7 +299,7 @@ const TracksTab = () => {
                     <option value="">Выберите заказ</option>
                     {orders.map((order) => (
                       <option key={order.id} value={order.id}>
-                        {order.theme} - {order.recipient_name} ({order.status})
+                        {order.theme?.name || 'Неизвестно'} - {order.recipient_name} ({order.status})
                       </option>
                     ))}
                   </select>
@@ -371,7 +382,7 @@ const TracksTab = () => {
           <option value="">Все заказы</option>
           {orders.map((order) => (
             <option key={order.id} value={order.id}>
-              {order.theme} - {order.recipient_name}
+              {order.theme?.name || 'Неизвестно'} - {order.recipient_name} ({order.status})
             </option>
           ))}
         </select>
@@ -421,7 +432,7 @@ const TracksTab = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div>
-                        <div className="font-medium">{track.order?.theme || 'Неизвестно'}</div>
+                        <div className="font-medium">{track.order?.theme?.name || 'Неизвестно'}</div>
                         <div className="text-xs text-gray-400">
                           Для: {track.order?.recipient_name || 'Не указано'}
                         </div>
