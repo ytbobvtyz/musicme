@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrder } from '@/api/orders'
 import { Order } from '@/types/order'
+import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 
 const OrderDetailPage = () => {
   const { orderId } = useParams<{ orderId: string }>()
@@ -28,19 +29,6 @@ const OrderDetailPage = () => {
     }
   }
 
-  // Функции для перевода статусов и тем
-  const getStatusText = (status: string) => {
-    const statusMap: { [key: string]: string } = {
-      'draft': 'Черновик',
-      'waiting_interview': 'Ожидает интервью',
-      'in_progress': 'В работе',
-      'ready': 'Готов',
-      'paid': 'Оплачен',
-      'completed': 'Завершен',
-      'cancelled': 'Отменен'
-    }
-    return statusMap[status] || status
-  }
 
   // ⬇️⬇️⬇️ ОБНОВИЛИ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЪЕКТАМИ ⬇️⬇️⬇️
   const getThemeText = (themeObj?: { name: string }) => {
@@ -92,12 +80,7 @@ const OrderDetailPage = () => {
         <h1 className="text-3xl font-bold mb-2">
           Заказ #{order.id.slice(0, 8)}
         </h1>
-        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-          order.status === 'completed' ? 'bg-green-100 text-green-800' :
-          order.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-          order.status === 'waiting_interview' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-gray-100 text-gray-800'
-        }`}>
+        <div className={getStatusClasses(order.status)}>
           {getStatusText(order.status)}
         </div>
       </div>

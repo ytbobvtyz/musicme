@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrders } from '@/api/orders'
 import { Order, OrderDisplay } from '@/types/order'
+import { getStatusText, getStatusClasses } from '@/utils/statusUtils' 
 
 // ⬇️⬇️⬇️ ПЕРЕНЕСЕМ ФУНКЦИИ В КОМПОНЕНТ ⬇️⬇️⬇️
 const orderToDisplay = (order: Order): OrderDisplay => ({
@@ -10,19 +11,6 @@ const orderToDisplay = (order: Order): OrderDisplay => ({
   theme: order.theme?.name || 'Неизвестно',
   genre: order.genre?.name || 'Неизвестно',
 })
-
-const getStatusText = (status: string): string => {
-  const statusMap: Record<string, string> = {
-    draft: 'Черновик',
-    waiting_interview: 'Ожидает интервью',
-    in_progress: 'В работе',
-    ready: 'Готов',
-    paid: 'Оплачен',
-    completed: 'Завершен',
-    cancelled: 'Отменен'
-  }
-  return statusMap[status] || status
-}
 
 const OrdersPage = () => {
   const { isAuthenticated } = useAuthStore()
@@ -37,19 +25,11 @@ const OrdersPage = () => {
 
   const loadOrders = async () => {
     try {
-      console.log('🔄 Загрузка заказов...')
       const data: Order[] = await getOrders()
-      
-      console.log('📦 Получены заказы:', data)
-      
-      // Преобразуем заказы для отображения
       const displayOrders = data.map(orderToDisplay)
-      
-      console.log('🎨 Преобразованные заказы:', displayOrders)
-      
       setOrders(displayOrders || [])
     } catch (error) {
-      console.error('❌ Ошибка при загрузке заказов:', error)
+      console.error('Ошибка при загрузке заказов:', error)
       alert('Не удалось загрузить заказы')
     } finally {
       setLoading(false)
