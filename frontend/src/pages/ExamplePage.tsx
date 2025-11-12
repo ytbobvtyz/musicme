@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { ExampleTrack } from '@/types/exampleTrack'
+import ThemeSquareBlock from '@/components/ThemeSquareBlock'
 
 const ExamplesPage = () => {
   const [tracks, setTracks] = useState<ExampleTrack[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeGenre, setActiveGenre] = useState<string>('all')
+  const [activeTheme, setActiveTheme] = useState<string>('all')
 
   useEffect(() => {
     fetchExampleTracks()
@@ -16,7 +17,6 @@ const ExamplesPage = () => {
       
       if (response.ok) {
         const data = await response.json()
-        // Фильтруем только активные треки
         const activeTracks = data.filter((track: ExampleTrack) => track.is_active)
         setTracks(activeTracks)
       }
@@ -27,18 +27,18 @@ const ExamplesPage = () => {
     }
   }
 
-  // Группировка треков по жанрам
-  const tracksByGenre = tracks.reduce((acc, track) => {
-    const genreName = track.genre?.name || 'Другие'
-    if (!acc[genreName]) {
-      acc[genreName] = []
+  // Группировка треков по темам
+  const tracksByTheme = tracks.reduce((acc, track) => {
+    const themeName = track.theme?.name || 'Другие'
+    if (!acc[themeName]) {
+      acc[themeName] = []
     }
-    acc[genreName].push(track)
+    acc[themeName].push(track)
     return acc
   }, {} as Record<string, ExampleTrack[]>)
 
-  // Получаем все жанры для фильтрации
-  const allGenres = Object.keys(tracksByGenre)
+  // Получаем все темы для фильтрации
+  const allThemes = Object.keys(tracksByTheme)
 
   if (loading) {
     return (
@@ -54,100 +54,68 @@ const ExamplesPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 pt-20">
       <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Заголовок */}
+        {/* Упрощенный заголовок */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Примеры наших работ
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Примеры работ
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Послушайте песни, которые мы создали для наших клиентов, сгруппированные по жанрам
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Слушайте наши песни, сгруппированные по темам
           </p>
         </div>
 
-        {/* Фильтр по жанрам */}
+        {/* Фильтр по темам */}
         <div className="flex flex-wrap gap-2 justify-center mb-12">
           <button
-            onClick={() => setActiveGenre('all')}
+            onClick={() => setActiveTheme('all')}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-              activeGenre === 'all'
+              activeTheme === 'all'
                 ? 'bg-primary-600 text-white shadow-lg'
                 : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'
             }`}
           >
-            Все жанры
+            Все темы
           </button>
-          {allGenres.map((genre) => (
+          {allThemes.map((theme) => (
             <button
-              key={genre}
-              onClick={() => setActiveGenre(genre)}
+              key={theme}
+              onClick={() => setActiveTheme(theme)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                activeGenre === genre
+                activeTheme === theme
                   ? 'bg-primary-600 text-white shadow-lg'
                   : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'
               }`}
             >
-              {genre}
+              {getThemeDisplayName(theme)}
             </button>
           ))}
         </div>
 
-        {/* Секции по жанрам с горизонтальной прокруткой */}
-        <div className="space-y-16">
-          {Object.entries(tracksByGenre)
-            .filter(([genre]) => activeGenre === 'all' || genre === activeGenre)
-            .map(([genre, genreTracks]) => (
-              <section key={genre} className="bg-white rounded-3xl shadow-lg p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
+        {/* Секции по темам с блоками в ряд */}
+        <div className="space-y-12">
+          {Object.entries(tracksByTheme)
+            .filter(([theme]) => activeTheme === 'all' || theme === activeTheme)
+            .map(([theme, themeTracks]) => (
+              <section key={theme} className="bg-white rounded-3xl shadow-lg p-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                   <span className="w-3 h-3 bg-primary-500 rounded-full mr-3"></span>
-                  {genre}
+                  {getThemeDisplayName(theme)}
                   <span className="ml-3 text-sm font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                    {genreTracks.length} треков
+                    {themeTracks.length} трек{themeTracks.length > 1 ? 'а' : ''}
                   </span>
                 </h2>
                 
-                {/* Горизонтальная прокрутка треков */}
-                <div className="flex overflow-x-auto pb-6 -mx-2 px-2 scrollbar-hide">
-                  <div className="flex space-x-6">
-                    {genreTracks.map((track) => (
-                      <div
-                        key={track.id}
-                        className="flex-shrink-0 w-80 bg-gray-50 rounded-2xl p-6 hover:shadow-lg transition-all duration-300 border border-gray-200"
-                      >
-                        <div className="mb-4">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-                            {track.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                            {track.description || 'Без описания'}
-                          </p>
-                          {track.theme && (
-                            <span className="inline-block bg-primary-100 text-primary-800 text-xs px-2 py-1 rounded-full">
-                              {track.theme.name}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Аудиоплеер */}
-                        <div className="space-y-3">
-                          <audio
-                            controls
-                            className="w-full h-12 rounded-lg [&::-webkit-media-controls-panel]:bg-gray-100"
-                          >
-                            <source
-                              src={`http://localhost:8000/api/v1/example-tracks/${track.id}/audio`}
-                              type="audio/mpeg"
-                            />
-                            Ваш браузер не поддерживает аудио элементы.
-                          </audio>
-                          {track.audio_size && (
-                            <p className="text-xs text-gray-500 text-center">
-                              {(track.audio_size / 1024 / 1024).toFixed(1)} MB
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {/* Блоки ThemeSquareBlock в ряд */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {themeTracks.map((track, index) => (
+                    <ThemeSquareBlock
+                      key={track.id}
+                      themeName={theme}
+                      tracks={[track]} // Передаем массив из одного трека
+                      delay={index * 100}
+                      compact={true}
+                    />
+                  ))}
                 </div>
               </section>
             ))}
@@ -168,6 +136,20 @@ const ExamplesPage = () => {
       </div>
     </div>
   )
+}
+
+// Вспомогательная функция
+const getThemeDisplayName = (theme: string) => {
+  const names: Record<string, string> = {
+    'день рождения': 'День рождения',
+    'праздник': 'Праздники', 
+    'новый год': 'Новый год',
+    'свадьба': 'Свадьба',
+    'любовь': 'Любовь',
+    'дружба': 'Дружба',
+    'другое': 'Другое'
+  }
+  return names[theme] || theme
 }
 
 export default ExamplesPage

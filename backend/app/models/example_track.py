@@ -35,7 +35,7 @@ class ExampleTrack(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     sort_order = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    
+    cover_filename = Column(String, nullable=True)
     # Связи
     theme = relationship("Theme")  # ← НОВОЕ
     genre = relationship("Genre")  # ← НОВОЕ

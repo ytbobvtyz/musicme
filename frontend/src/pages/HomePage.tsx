@@ -3,6 +3,7 @@ import AuthBlock from '@/components/AuthBlock'
 import { useExampleTracks } from '@/hooks/useExampleTracks'
 import { useState } from 'react'
 import { ExampleTrack } from '@/types/exampleTrack' // Добавляем импорт
+import ThemeSquareBlock from '@/components/ThemeSquareBlock'
 
 const HomePage = () => {
   const { tracksByTheme, loading } = useExampleTracks()
@@ -144,7 +145,6 @@ const HomePage = () => {
             </div>
           )}
 
-          {/* Кнопка перехода ко всем примерам */}
           <div className="text-center mt-16">
             <Link
               to="/examples"
@@ -184,144 +184,6 @@ const HomePage = () => {
       </section>
     </div>
   )
-}
-
-// Компонент квадратного блока с треками для темы
-const ThemeSquareBlock = ({ 
-  themeName, 
-  tracks, 
-  delay 
-}: { 
-  themeName: string
-  tracks: ExampleTrack[]
-  delay: number
-}) => {
-  const [currentTrackIndex, setCurrentTrackIndex] = useState(0)
-  const currentTrack = tracks[currentTrackIndex]
-
-  const nextTrack = () => {
-    setCurrentTrackIndex((prev) => (prev + 1) % tracks.length)
-  }
-
-  // Функция для получения URL обложки из MP3 метаданных
-  const getTrackCoverUrl = (track: ExampleTrack) => {
-    // Если есть специальное поле для обложки, используем его
-    // Иначе можно попробовать получить из аудиофайла или использовать градиент
-    return `http://localhost:8000/api/v1/example-tracks/${track.id}/cover`
-  }
-
-  // Фолбэк градиент если нет обложки
-  const getThemeGradient = (theme: string) => {
-    const gradients: Record<string, string> = {
-      'день рождения': 'from-blue-500 to-cyan-500',
-      'праздник': 'from-purple-500 to-indigo-500',
-      'новый год': 'from-green-500 to-emerald-500',
-      'свадьба': 'from-pink-500 to-rose-500',
-      'любовь': 'from-red-500 to-pink-500',
-      'дружба': 'from-orange-500 to-amber-500',
-      'другое': 'from-gray-500 to-slate-500'
-    }
-    return gradients[theme] || 'from-primary-500 to-accent-500'
-  }
-
-  return (
-    <div 
-      className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 animate-scale-in aspect-square flex flex-col"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      {/* Верхняя часть с обложкой и аудио */}
-      <div 
-        className={`flex-1 relative p-6 flex flex-col justify-between bg-cover bg-center bg-no-repeat`}
-        style={{
-          backgroundImage: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${getTrackCoverUrl(currentTrack)})`,
-        }}
-      >
-        {/* Фолбэк градиент если обложка не загрузится */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${getThemeGradient(themeName)} opacity-60 -z-10`}></div>
-        
-        <div className="text-center">
-          <h3 className="text-white text-lg font-semibold mb-2 line-clamp-2 drop-shadow-sm">
-            {getThemeDisplayName(themeName)}
-          </h3>
-          <p className="text-white/90 text-sm mb-4 drop-shadow-sm">
-            {tracks.length} трек{tracks.length > 1 ? 'а' : ''}
-          </p>
-        </div>
-
-        {/* Аудиоплеер */}
-        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/30">
-          <audio 
-            controls 
-            className="w-full rounded-lg [&::-webkit-media-controls-panel]:bg-white/90 [&::-webkit-media-controls-panel]:rounded-lg [&::-webkit-media-controls-panel]:backdrop-blur-sm"
-          >
-            <source 
-              src={`http://localhost:8000/api/v1/example-tracks/${currentTrack.id}/audio`} 
-              type="audio/mpeg" 
-            />
-            Ваш браузер не поддерживает аудио элементы.
-          </audio>
-        </div>
-
-        {/* Увеличенная стрелка вниз для прокрутки */}
-        {tracks.length > 1 && (
-          <button
-            onClick={nextTrack}
-            className="absolute bottom-4 right-4 bg-white/30 backdrop-blur-sm rounded-full p-3 hover:bg-white/40 transition-all duration-200 hover:scale-110 border border-white/40 shadow-lg"
-            title="Следующий трек"
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </button>
-        )}
-      </div>
-
-      {/* Нижняя часть с информацией */}
-      <div className="p-4 bg-white flex-shrink-0 border-t border-gray-100">
-        <div className="text-center">
-          <h4 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-1">
-            {currentTrack.title}
-          </h4>
-          <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-            {currentTrack.description || 'Без описания'}
-          </p>
-          
-          {/* Индикатор текущего трека */}
-          {tracks.length > 1 && (
-            <div className="flex items-center justify-center space-x-2">
-              <span className="text-xs text-gray-500 font-medium">
-                {currentTrackIndex + 1}/{tracks.length}
-              </span>
-              <div className="flex space-x-1.5">
-                {tracks.map((_, index) => (
-                  <div
-                    key={index}
-                    className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                      index === currentTrackIndex ? 'bg-primary-600' : 'bg-gray-300'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Вспомогательные функции для отображения тем
-const getThemeDisplayName = (theme: string) => {
-  const names: Record<string, string> = {
-    'день рождения': 'Треки для дней рождений',
-    'праздник': 'Треки для праздников и юбилеев',
-    'новый год': 'Новогодние треки',
-    'свадьба': 'Свадебные треки',
-    'любовь': 'Романтические треки',
-    'дружба': 'Треки о дружбе',
-    'другое': 'Треки на заданную тему'
-  }
-  return names[theme] || theme
 }
 
 export default HomePage

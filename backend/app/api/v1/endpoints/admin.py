@@ -409,8 +409,8 @@ async def update_example_track(
 async def upload_example_track(
     file: UploadFile = File(...),
     title: str = Form(...),
-    theme_id: str = Form(...),  # ← МЕНЯЕМ НА theme_id
-    genre_id: str = Form(...),  # ← МЕНЯЕМ НА genre_id
+    theme_id: str = Form(...),
+    genre_id: str = Form(...),
     description: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
@@ -432,8 +432,8 @@ async def upload_example_track(
     # Создаем запись в БД с новой структурой
     db_track = ExampleTrackModel(
         title=title,
-        theme_id=theme_uuid,  # ← ИСПОЛЬЗУЕМ UUID
-        genre_id=genre_uuid,  # ← ИСПОЛЬЗУЕМ UUID
+        theme_id=theme_uuid,
+        genre_id=genre_uuid,
         description=description,
         audio_filename=file_info["filename"],
         audio_size=file_info["size"],
@@ -444,6 +444,13 @@ async def upload_example_track(
     db.add(db_track)
     await db.commit()
     await db.refresh(db_track)
+    
+    # После сохранения файла извлекаем обложку (ДЕЛАЕМ ПОСЛЕ СОЗДАНИЯ ЗАПИСИ)
+    cover_filename = file_storage.extract_cover_from_mp3(file_info["filename"], "examples")
+    if cover_filename:
+        db_track.cover_filename = cover_filename
+        await db.commit()  # ← ВАЖНО: коммитим изменения с обложкой
+        await db.refresh(db_track)
     
     # Загружаем связи для возврата полных данных
     await db.refresh(db_track, ['theme', 'genre'])
