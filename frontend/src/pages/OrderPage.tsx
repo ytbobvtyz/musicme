@@ -1,32 +1,60 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { createOrder } from '@/api/orders'
+import { getThemes } from '@/api/themes'
+import { getGenres } from '@/api/genres'
+import { Theme } from '@/types/theme'
+import { Genre } from '@/types/genre'
 
 const OrderPage = () => {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuthStore()
+  const [themes, setThemes] = useState<Theme[]>([])
+  const [genres, setGenres] = useState<Genre[]>([])
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    theme: '',
-    genre: '',
+    theme_id: '',  // ← ИЗМЕНИЛОСЬ: теперь theme_id вместо theme
+    genre_id: '',  // ← ИЗМЕНИЛОСЬ: теперь genre_id вместо genre
     recipient_name: '',
     occasion: '',
     details: '',
   })
-  const [loading, setLoading] = useState(false)
+
+  // Загружаем темы и жанры при монтировании
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [themesData, genresData] = await Promise.all([
+          getThemes(),
+          getGenres()
+        ])
+        setThemes(themesData)
+        setGenres(genresData)
+      } catch (error) {
+        console.error('Ошибка при загрузке данных:', error)
+        alert('Не удалось загрузить данные для формы')
+      }
+    }
+    
+    loadData()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!isAuthenticated) {
-      // TODO: Реализовать OAuth авторизацию
       alert('Пожалуйста, войдите в систему')
+      return
+    }
+
+    if (!formData.theme_id || !formData.genre_id) {
+      alert('Пожалуйста, выберите тему и жанр')
       return
     }
 
     setLoading(true)
     try {
-      // TODO: Реализовать создание заказа через API
       await createOrder(formData)
       navigate('/orders')
     } catch (error) {
@@ -59,16 +87,16 @@ const OrderPage = () => {
               </label>
               <select
                 required
-                value={formData.theme}
-                onChange={(e) => setFormData({ ...formData, theme: e.target.value })}
+                value={formData.theme_id}
+                onChange={(e) => setFormData({ ...formData, theme_id: e.target.value })}
                 className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 appearance-none cursor-pointer hover:bg-gray-100"
               >
                 <option value="">Выберите повод</option>
-                <option value="свадьба">Свадьба</option>
-                <option value="день_рождения">День рождения</option>
-                <option value="годовщина">Годовщина</option>
-                <option value="предложение">Предложение руки и сердца</option>
-                <option value="другой">Другой</option>
+                {themes.map((theme) => (
+                  <option key={theme.id} value={theme.id}>
+                    {theme.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -78,21 +106,20 @@ const OrderPage = () => {
               </label>
               <select
                 required
-                value={formData.genre}
-                onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
+                value={formData.genre_id}
+                onChange={(e) => setFormData({ ...formData, genre_id: e.target.value })}
                 className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 appearance-none cursor-pointer hover:bg-gray-100"
               >
                 <option value="">Выберите жанр</option>
-                <option value="поп">Поп</option>
-                <option value="рок">Рок</option>
-                <option value="хип-хоп">Хип-хоп</option>
-                <option value="джаз">Джаз</option>
-                <option value="классика">Классика</option>
-                <option value="электронная">Электронная</option>
-                <option value="другой">Другой</option>
+                {genres.map((genre) => (
+                  <option key={genre.id} value={genre.id}>
+                    {genre.name}
+                  </option>
+                ))}
               </select>
             </div>
 
+            {/* Остальные поля остаются без изменений */}
             <div>
               <label className="block text-sm font-semibold text-gray-900 mb-3">
                 Для кого (имя) <span className="text-red-500">*</span>

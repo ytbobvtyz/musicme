@@ -19,6 +19,7 @@ const OrderDetailPage = () => {
   const loadOrder = async () => {
     try {
       const data = await getOrder(orderId!)
+      console.log('📦 Получен заказ:', data) // ← ДЛЯ ОТЛАДКИ
       setOrder(data)
     } catch (error) {
       console.error('Ошибка при загрузке заказа:', error)
@@ -41,15 +42,13 @@ const OrderDetailPage = () => {
     return statusMap[status] || status
   }
 
-  const getThemeText = (theme: string) => {
-    const themeMap: { [key: string]: string } = {
-      'свадьба': 'Свадьба',
-      'день_рождения': 'День рождения',
-      'годовщина': 'Годовщина',
-      'предложение': 'Предложение',
-      'другой': 'Другой повод'
-    }
-    return themeMap[theme] || theme
+  // ⬇️⬇️⬇️ ОБНОВИЛИ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЪЕКТАМИ ⬇️⬇️⬇️
+  const getThemeText = (themeObj?: { name: string }) => {
+    return themeObj?.name || 'Неизвестно'
+  }
+
+  const getGenreText = (genreObj?: { name: string }) => {
+    return genreObj?.name || 'Неизвестно'
   }
 
   if (!isAuthenticated) {
@@ -109,11 +108,13 @@ const OrderDetailPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm text-gray-500">Повод</label>
+            {/* ⬇️⬇️⬇️ ИСПОЛЬЗУЕМ ОБЪЕКТ theme ⬇️⬇️⬇️ */}
             <p className="font-medium">{getThemeText(order.theme)}</p>
           </div>
           <div>
             <label className="text-sm text-gray-500">Жанр</label>
-            <p className="font-medium">{order.genre}</p>
+            {/* ⬇️⬇️⬇️ ИСПОЛЬЗУЕМ ОБЪЕКТ genre ⬇️⬇️⬇️ */}
+            <p className="font-medium">{getGenreText(order.genre)}</p>
           </div>
           <div>
             <label className="text-sm text-gray-500">Для кого</label>

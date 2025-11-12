@@ -34,9 +34,9 @@ class Order(OrderBase):
     created_at: datetime
     updated_at: datetime
     
-    # Связи
-    theme: Optional[Theme] = None  # ← НОВОЕ
-    genre: Optional[Genre] = None  # ← НОВОЕ
+    # Связи - делаем опциональными
+    theme: Optional[Theme] = None
+    genre: Optional[Genre] = None
     
     class Config:
         from_attributes = True
@@ -47,17 +47,15 @@ class OrderDetail(Order):
     tracks: List[Track] = []
 
 
-# ⬇️⬇️⬇️ ИСПРАВЬ ЭТУ СХЕМУ ⬇️⬇️⬇️
 class AdminOrder(Order):
     """Схема заказа для админки с пользователем"""
-    user: Optional[User] = None  # Делаем опциональным для обратной совместимости
+    user: Optional[User] = None
     tracks_count: int = 0
 
     class Config:
         from_attributes = True
 
 
-# ⬇️⬇️⬇️ ДОБАВЬ НОВУЮ СХЕМУ ⬇️⬇️⬇️
 class OrderWithUser(Order):
     """Схема заказа с информацией о пользователе"""
     user: Optional[User] = None

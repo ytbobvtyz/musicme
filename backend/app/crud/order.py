@@ -3,6 +3,7 @@ CRUD операции для заказов
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from uuid import UUID
 from typing import List, Optional
 
@@ -24,6 +25,7 @@ class CRUDOrder:
         result = await db.execute(
             select(OrderModel)
             .where(OrderModel.user_id == user_id)
+            .options(selectinload(OrderModel.theme), selectinload(OrderModel.genre))
             .order_by(OrderModel.created_at.desc())
         )
         return result.scalars().all()
@@ -31,7 +33,9 @@ class CRUDOrder:
     async def get_by_id(self, db: AsyncSession, order_id: UUID) -> Optional[OrderModel]:
         """Получить заказ по ID"""
         result = await db.execute(
-            select(OrderModel).where(OrderModel.id == order_id)
+            select(OrderModel)
+            .where(OrderModel.id == order_id)
+            .options(selectinload(OrderModel.theme), selectinload(OrderModel.genre))
         )
         return result.scalar_one_or_none()
 
@@ -43,7 +47,11 @@ class CRUDOrder:
         offset: int = 0
     ) -> List[OrderModel]:
         """Получить все заказы (для админки)"""
-        query = select(OrderModel)
+        query = select(OrderModel).options(
+            selectinload(OrderModel.theme), 
+            selectinload(OrderModel.genre),
+            selectinload(OrderModel.user)
+        )
         
         if status_filter:
             query = query.where(OrderModel.status == status_filter)

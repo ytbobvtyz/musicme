@@ -15,4 +15,3 @@ export const createOrder = async (orderData: OrderCreate) => {
   const response = await apiClient.post('/orders', orderData)
   return response.data
 }
-

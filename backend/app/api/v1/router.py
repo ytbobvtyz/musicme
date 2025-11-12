@@ -3,11 +3,13 @@
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, orders, tracks, payments, admin
+from app.api.v1.endpoints import auth, orders, tracks, payments, admin, themes, genres
 
 api_router = APIRouter()
 
 # Подключение роутеров
+api_router.include_router(themes.router, prefix="/themes", tags=["themes"])
+api_router.include_router(genres.router, prefix="/genres", tags=["genres"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(orders.router, prefix="/orders", tags=["orders"])
 api_router.include_router(tracks.router, prefix="/tracks", tags=["tracks"])

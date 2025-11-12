@@ -2,11 +2,31 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrders } from '@/api/orders'
-import { Order } from '@/types/order'
+import { Order, OrderDisplay } from '@/types/order'
+
+// ⬇️⬇️⬇️ ПЕРЕНЕСЕМ ФУНКЦИИ В КОМПОНЕНТ ⬇️⬇️⬇️
+const orderToDisplay = (order: Order): OrderDisplay => ({
+  ...order,
+  theme: order.theme?.name || 'Неизвестно',
+  genre: order.genre?.name || 'Неизвестно',
+})
+
+const getStatusText = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    draft: 'Черновик',
+    waiting_interview: 'Ожидает интервью',
+    in_progress: 'В работе',
+    ready: 'Готов',
+    paid: 'Оплачен',
+    completed: 'Завершен',
+    cancelled: 'Отменен'
+  }
+  return statusMap[status] || status
+}
 
 const OrdersPage = () => {
   const { isAuthenticated } = useAuthStore()
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<OrderDisplay[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -15,21 +35,26 @@ const OrdersPage = () => {
     }
   }, [isAuthenticated])
 
-const loadOrders = async () => {
-  try {
-    
-    // Сравним оба источника токена
-    const storeToken = useAuthStore.getState().token
-    const localStorageToken = localStorage.getItem('token')
-    
-    const data = await getOrders()
-    
-    setOrders(data || [])
-  } catch (error) {
-  } finally {
-    setLoading(false)
+  const loadOrders = async () => {
+    try {
+      console.log('🔄 Загрузка заказов...')
+      const data: Order[] = await getOrders()
+      
+      console.log('📦 Получены заказы:', data)
+      
+      // Преобразуем заказы для отображения
+      const displayOrders = data.map(orderToDisplay)
+      
+      console.log('🎨 Преобразованные заказы:', displayOrders)
+      
+      setOrders(displayOrders || [])
+    } catch (error) {
+      console.error('❌ Ошибка при загрузке заказов:', error)
+      alert('Не удалось загрузить заказы')
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   if (!isAuthenticated) {
     return (
@@ -74,7 +99,7 @@ const loadOrders = async () => {
                     Повод: {order.theme} | Жанр: {order.genre}
                   </p>
                   <p className="text-sm text-gray-500 mt-2">
-                    Статус: {order.status} | Создан: {new Date(order.created_at).toLocaleDateString('ru-RU')}
+                    Статус: {getStatusText(order.status)} | Создан: {new Date(order.created_at).toLocaleDateString('ru-RU')}
                   </p>
                 </div>
                 <Link
@@ -93,4 +118,3 @@ const loadOrders = async () => {
 }
 
 export default OrdersPage
-
