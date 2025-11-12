@@ -19,6 +19,7 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
+    is_producer = Column(Boolean, default=False, nullable=False)    
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
 

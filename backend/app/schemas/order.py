@@ -8,16 +8,16 @@ from pydantic import BaseModel, Field
 
 from app.schemas.track import Track
 from app.schemas.user import User
-
+from app.schemas.theme import Theme
+from app.schemas.genre import Genre
 
 class OrderBase(BaseModel):
-    """Базовая схема заказа"""
-    theme: str
-    genre: str
     recipient_name: str = Field(..., max_length=100)
     occasion: Optional[str] = Field(None, max_length=200)
     details: Optional[str] = Field(None, max_length=1000)
     preferences: Optional[Dict[str, Any]] = None
+    theme_id: UUID
+    genre_id: UUID
 
 
 class OrderCreate(OrderBase):
@@ -26,7 +26,6 @@ class OrderCreate(OrderBase):
 
 
 class Order(OrderBase):
-    """Схема заказа"""
     id: UUID
     user_id: UUID
     status: str
@@ -34,6 +33,10 @@ class Order(OrderBase):
     estimated_time: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    
+    # Связи
+    theme: Optional[Theme] = None  # ← НОВОЕ
+    genre: Optional[Genre] = None  # ← НОВОЕ
     
     class Config:
         from_attributes = True

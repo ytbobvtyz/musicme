@@ -29,13 +29,13 @@ class Order(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    theme = Column(String, nullable=False)
-    genre = Column(String, nullable=False)
+    theme_id = Column(UUID(as_uuid=True), ForeignKey("themes.id"), nullable=False, index=True)  # ← НОВОЕ
+    genre_id = Column(UUID(as_uuid=True), ForeignKey("genres.id"), nullable=False, index=True)  # ← НОВОЕ
     recipient_name = Column(String, nullable=False)
     occasion = Column(String, nullable=True)
     details = Column(Text, nullable=True)
     preferences = Column(JSON, nullable=True)
-    status = Column(String, nullable=False, default=OrderStatus.DRAFT, index=True)  # ⬅️ Используй Enum
+    status = Column(String, nullable=False, default=OrderStatus.DRAFT, index=True)
     interview_link = Column(String, nullable=True)
     estimated_time = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -43,6 +43,8 @@ class Order(Base):
     
     # Связи
     user = relationship("User", backref="orders")
+    theme = relationship("Theme")  # ← НОВОЕ
+    genre = relationship("Genre")  # ← НОВОЕ
     tracks = relationship("Track", back_populates="order", cascade="all, delete-orphan")
     
     def __repr__(self):

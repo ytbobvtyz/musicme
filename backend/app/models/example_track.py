@@ -4,8 +4,9 @@
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean
+from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -16,24 +17,28 @@ class ExampleTrack(Base):
     __tablename__ = "example_tracks"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title = Column(String, nullable=False)  # Название примера
-    genre = Column(String, nullable=False, index=True)  # Жанр (поп, рок и т.д.)
-    theme = Column(String, nullable=False, index=True)  # Тема (свадьба, день рождения и т.д.)
-    description = Column(Text, nullable=True)  # Описание примера
+    title = Column(String, nullable=False)
+    theme_id = Column(UUID(as_uuid=True), ForeignKey("themes.id"), nullable=False, index=True)  # ← НОВОЕ
+    genre_id = Column(UUID(as_uuid=True), ForeignKey("genres.id"), nullable=False, index=True)  # ← НОВОЕ
+    description = Column(Text, nullable=True)
     
-    # Новые поля для хранения файлов
-    audio_filename = Column(String, nullable=True)  # Имя файла в хранилище
-    audio_size = Column(Integer, nullable=True)  # Размер файла в байтах
-    audio_mimetype = Column(String, nullable=True)  # MIME type
+    # Поля для хранения файлов
+    audio_filename = Column(String, nullable=True)
+    audio_size = Column(Integer, nullable=True)
+    audio_mimetype = Column(String, nullable=True)
     
     # Старые поля для обратной совместимости
-    audio_url = Column(String, nullable=True)  # URL аудио файла
-    suno_id = Column(String, nullable=True)  # ID в Suno (если есть)
+    audio_url = Column(String, nullable=True)
+    suno_id = Column(String, nullable=True)
     
-    duration = Column(Integer, nullable=True)  # Длительность в секундах
-    is_active = Column(Boolean, default=True, nullable=False)  # Активен ли пример
-    sort_order = Column(Integer, default=0, nullable=False)  # Порядок сортировки
+    duration = Column(Integer, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
+    # Связи
+    theme = relationship("Theme")  # ← НОВОЕ
+    genre = relationship("Genre")  # ← НОВОЕ
+    
     def __repr__(self):
-        return f"<ExampleTrack(id={self.id}, title={self.title}, genre={self.genre})>"
+        return f"<ExampleTrack(id={self.id}, title={self.title})>"

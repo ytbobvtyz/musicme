@@ -5,18 +5,19 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel
+from app.schemas.theme import Theme
+from app.schemas.genre import Genre
 
 
 class ExampleTrackBase(BaseModel):
-    title: str
-    genre: str
     theme: str
     description: Optional[str] = None
     audio_url: str
     suno_id: Optional[str] = None
     duration: Optional[int] = None
     sort_order: int = 0
-
+    theme_id: UUID
+    genre_id: UUID
 
 class ExampleTrackCreate(ExampleTrackBase):  # ⬅️ ДОБАВЬ ЭТОТ КЛАСС
     pass
@@ -36,6 +37,9 @@ class ExampleTrack(ExampleTrackBase):
     id: UUID
     is_active: bool
     created_at: datetime
+
+    theme: Optional[Theme] = None
+    genre: Optional[Genre] = None
 
     class Config:
         from_attributes = True

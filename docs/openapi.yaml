@@ -1,14 +1,14 @@
 openapi: 3.0.3
 info:
-  title: Mysong-Podarok.ru API
+  title: musicme.ru API
   description: API для сервиса создания персонализированных музыкальных треков
-  version: 1.0.0
+  version: 1.0.1
   contact:
     name: API Support
-    email: dev@mysong-podarok.ru
+    email: ytbob@yandex.ru
 
 servers:
-  - url: https://api.mysong-podarok.ru/api/v1
+  - url: https://api.musicme.ru/api/v1
     description: Production server
   - url: http://localhost:8000/api/v1
     description: Development server

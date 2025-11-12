@@ -22,6 +22,9 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
+# Создаем алиас для обратной совместимости
+async_session = AsyncSessionLocal
+
 # Базовый класс для моделей
 Base = declarative_base()
 
@@ -47,10 +50,20 @@ async def init_db():
     В production рекомендуется использовать Alembic миграции вместо create_all
     """
     # Импортируем все модели для регистрации в Base.metadata
-    from app.models import user, order, track  # noqa
+    from app.models import user, order, track, example_track, theme, genre
     
     async with engine.begin() as conn:
         # Создаем таблицы (только для разработки)
         # В production используйте: alembic upgrade head
         await conn.run_sync(Base.metadata.create_all)
 
+
+# Экспортируем всё необходимое для использования в других модулях
+__all__ = [
+    "engine",
+    "AsyncSessionLocal", 
+    "async_session",  # Алиас для обратной совместимости
+    "Base",
+    "get_db", 
+    "init_db"
+]
