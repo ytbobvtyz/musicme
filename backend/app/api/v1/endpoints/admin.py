@@ -502,3 +502,47 @@ async def get_admin_stats(
         "orders_completed": 0,
         "total_users": 0
     }
+
+@router.delete("/orders/{order_id}")
+async def delete_order_admin(
+    order_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: UserModel = Depends(get_current_admin)
+):
+    """
+    Удалить заказ (админ) с каскадным удалением треков
+    """
+    try:
+        # Находим заказ
+        order_query = select(OrderModel).where(OrderModel.id == order_id)
+        order_result = await db.execute(order_query)
+        order = order_result.scalar_one_or_none()
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        # Удаляем связанные треки и их файлы
+        tracks_query = select(TrackModel).where(TrackModel.order_id == order_id)
+        tracks_result = await db.execute(tracks_query)
+        tracks = tracks_result.scalars().all()
+        
+        # Удаляем файлы треков
+        for track in tracks:
+            if track.audio_filename:
+                try:
+                    file_storage.delete_file(track.audio_filename, "audio")
+                except Exception as e:
+                    print(f"Warning: Error deleting track file {track.audio_filename}: {e}")
+        
+        # Удаляем заказ (треки удалятся каскадно из-за cascade="all, delete-orphan")
+        await db.delete(order)
+        await db.commit()
+        
+        return {"message": "Заказ и связанные треки удалены"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        print(f"Error deleting order: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка при удалении заказа: {str(e)}")
