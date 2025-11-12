@@ -14,7 +14,7 @@ from app.core.deps import get_current_user as get_current_user_dep
 from app.core.security import create_access_token
 from app.schemas.auth import OAuthRequest, AuthResponse
 from app.schemas.user import User as UserSchema
-from app.crud.user import upsert_user_by_email
+from app.crud.user import upsert_user_by_email, crud_user
 
 router = APIRouter()
 
@@ -198,3 +198,34 @@ async def get_current_user(current_user: UserSchema = Depends(get_current_user_d
     """
     return current_user
 
+from app.schemas.telegram import TelegramAuth
+
+@router.post("/telegram", response_model=AuthResponse)
+async def auth_telegram(
+    telegram_data: TelegramAuth,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Авторизация через Telegram Login Widget
+    """
+    # TODO: Реализовать проверку hash (важно для безопасности!)
+    # Пока пропускаем для тестирования
+    
+    # Ищем пользователя по telegram_id
+    user = await crud_user.get_by_telegram_id(db, telegram_data.id)
+    
+    if not user:
+        # Создаем нового пользователя
+        user = await crud_user.create_telegram_user(db, telegram_data)
+    else:
+        # Обновляем данные существующего пользователя
+        user = await crud_user.update_telegram_data(db, user.id, telegram_data)
+    
+    # Создаем JWT токен
+    access_token = create_access_token({"sub": str(user.id)})
+    
+    return AuthResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=user
+    )

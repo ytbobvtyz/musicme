@@ -6,7 +6,42 @@ const AuthBlock = () => {
   const { isAuthenticated, user, setToken } = useAuthStore()
   const navigate = useNavigate()
 
-  const handleAuth = async (provider: 'vk' | 'google' | 'yandex') => {
+  // Загружаем Telegram Widget Script
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.async = true
+    document.body.appendChild(script)
+
+    return () => {
+      document.body.removeChild(script)
+    }
+  }, [])
+
+  const handleAuth = async (provider: 'vk' | 'google' | 'yandex'| 'telegram') => {
+    
+    // if (provider === 'telegram') {
+    //   // Используем Telegram Login Widget
+    //   if (window.Telegram?.Login) {
+    //     window.Telegram.Login.auth(
+    //       { 
+    //         bot_id: '8202897988', // Ваш бот username без @
+    //         request_access: true 
+    //       },
+    //       (data) => {
+    //         console.log('Telegram auth data:', data)
+    //         sendTelegramAuthData(data)
+    //       }
+    //     )
+    //   } else {
+    //     // Fallback для отладки
+    //     console.log('Telegram Widget не загружен, используем fallback')
+    //     // Можно показать инструкцию для пользователя
+    //     alert('Для авторизации через Telegram:\n1. Перейдите в @musicme_ru_bot\n2. Отправьте команду /start\n3. Вернитесь на сайт')
+    //   }
+    //   return
+    // }
+    
     if (provider === 'yandex') {
       // Простой редирект на твой бэкенд
       window.location.href = 'http://localhost:8000/api/v1/auth/yandex/login'
@@ -17,6 +52,27 @@ const AuthBlock = () => {
     console.log(`Авторизация через ${provider}`)
     alert(`Авторизация через ${provider} будет реализована позже`)
   }
+
+  const sendTelegramAuthData = async (telegramData: any) => {
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(telegramData)
+      })
+      
+      if (response.ok) {
+        const { access_token, user } = await response.json()
+        setToken(access_token)
+        console.log('Успешная авторизация через Telegram')
+      } else {
+        console.error('Ошибка авторизации через Telegram')
+      }
+    } catch (error) {
+      console.error('Ошибка при отправке данных Telegram:', error)
+    }
+  } 
+
   if (isAuthenticated && user) {
     return (
       <div className="fixed top-24 left-6 z-40 animate-fade-in">
@@ -76,6 +132,15 @@ const AuthBlock = () => {
               <path d="M12.186 0h-.745v9.103H0v.745h11.441V24h.745V9.848H24v-.745H12.186V0z"/>
             </svg>
             <span>Яндекс</span>
+          </button>
+          <button
+            onClick={() => handleAuth('telegram')}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#0088CC] text-white rounded-xl font-medium hover:bg-[#0077B6] active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.139c-.204-.143-.433-.214-.684-.214-.261 0-.522.071-.765.214-.61.428-1.211.867-1.812 1.306-.49.357-.979.714-1.469 1.072-.51.357-1.02.714-1.53 1.071-.306.214-.612.428-.918.643-.214.143-.408.255-.582.336-.071.04-.133.071-.184.091-.051.02-.092.031-.122.031-.051 0-.092-.02-.122-.061-.02-.04-.02-.092-.02-.153v-.356c0-.204.02-.408.051-.612.02-.204.061-.418.122-.643.061-.224.133-.459.214-.704.082-.245.173-.5.275-.765.102-.265.214-.541.336-.826.122-.286.255-.582.398-.888.143-.306.296-.622.459-.949.163-.327.337-.664.52-1.011.184-.347.377-.704.581-1.071.204-.367.418-.744.643-1.131.224-.388.459-.786.704-1.194.245-.408.5-.826.765-1.255.265-.428.54-.867.826-1.316.286-.449.582-.908.888-1.378.306-.47.622-.95.949-1.439.327-.49.664-.99 1.011-1.5.102-.143.214-.265.336-.367.122-.102.255-.184.398-.245.143-.061.296-.092.459-.092.163 0 .316.031.459.092.143.061.265.143.367.245.102.102.184.224.245.367.061.143.092.296.092.459 0 .163-.031.316-.092.459-.061.143-.143.265-.245.367-.102.102-.224.184-.367.245-.143.061-.296.092-.459.092-.163 0-.316-.031-.459-.092-.143-.061-.265-.143-.367-.245-.102-.102-.184-.224-.245-.367-.061-.143-.092-.296-.092-.459 0-.163.031-.316.092-.459.061-.143.143-.265.245-.367.102-.102.224-.184.367-.245.143-.061.296-.092.459-.092.163 0 .316.031.459.092.143.061.265.143.367.245.102.102.184.224.245.367.061.143.092.296.092.459 0 .163-.031.316-.092.459-.061.143-.143.265-.245.367-.102.102-.224.184-.367.245-.143.061-.296.092-.459.092z"/>
+            </svg>
+            <span>Telegram</span>
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-4 text-center">
