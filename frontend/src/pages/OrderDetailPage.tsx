@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrder } from '@/api/orders'
-import { Order } from '@/types/order'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
+import { OrderDetail } from '@/types/order'
 
 const OrderDetailPage = () => {
   const { orderId } = useParams<{ orderId: string }>()
   const { isAuthenticated } = useAuthStore()
-  const [order, setOrder] = useState<Order | null>(null)
+  const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,12 +21,30 @@ const OrderDetailPage = () => {
     try {
       const data = await getOrder(orderId!)
       console.log('📦 Получен заказ:', data) // ← ДЛЯ ОТЛАДКИ
+      console.log('🎵 Треки заказа:', data.tracks) 
       setOrder(data)
     } catch (error) {
       console.error('Ошибка при загрузке заказа:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Функции для работы с треками
+  const getTrackAudioUrl = (track: any) => {
+    if (track.audio_filename) {
+      return `http://localhost:8000/api/v1/tracks/${track.id}/audio`
+    }
+    return track.preview_url || track.full_url
+  }
+
+  const getTrackStatusText = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'generating': 'Генерируется',
+      'ready': 'Готов',
+      'error': 'Ошибка'
+    }
+    return statusMap[status] || status
   }
 
 
@@ -145,7 +163,81 @@ const OrderDetailPage = () => {
           </a>
         </div>
       )}
+      {/* Секция с треками */}
+      {order.tracks && order.tracks.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Треки заказа</h2>
+          <div className="space-y-4">
+            {order.tracks.map((track) => (
+              <div key={track.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">
+                      {track.title || `Трек ${track.id.slice(0, 8)}`}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Статус: {getTrackStatusText(track.status)}
+                    </p>
+                    {track.duration && (
+                      <p className="text-sm text-gray-600">
+                        Длительность: {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}
+                      </p>
+                    )}
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    track.status === 'ready' ? 'bg-green-100 text-green-800' :
+                    track.status === 'generating' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {getTrackStatusText(track.status)}
+                  </span>
+                </div>
 
+                {/* Аудиоплеер для готовых треков */}
+                {track.status === 'ready' && (
+                  <div className="mt-3">
+                    <audio 
+                      controls 
+                      className="w-full rounded-lg [&::-webkit-media-controls-panel]:bg-gray-100"
+                    >
+                      <source 
+                        src={getTrackAudioUrl(track)} 
+                        type="audio/mpeg" 
+                      />
+                      Ваш браузер не поддерживает аудио элементы.
+                    </audio>
+                    {track.is_paid && (
+                      <p className="text-sm text-green-600 mt-2">✅ Оплачено</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Кнопка оплаты для превью */}
+                {track.status === 'ready' && track.preview_url && !track.is_paid && (
+                  <div className="mt-3 flex justify-between items-center">
+                    <span className="text-sm text-gray-600">
+                      Доступно 60 секунд превью
+                    </span>
+                    <button className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm">
+                      Купить полную версию
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Сообщение если треков нет */}
+      {order.tracks && order.tracks.length === 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Треки заказа</h2>
+          <p className="text-gray-600 text-center py-4">
+            Треки еще не созданы. Мы уведомим вас, когда они появятся.
+          </p>
+        </div>
+      )}
       {/* Действия */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">Действия</h2>

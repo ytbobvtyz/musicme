@@ -45,7 +45,7 @@ class Order(Base):
     user = relationship("User", backref="orders")
     theme = relationship("Theme")  # ← НОВОЕ
     genre = relationship("Genre")  # ← НОВОЕ
-    tracks = relationship("Track", back_populates="order", cascade="all, delete-orphan")
+    tracks = relationship("Track", back_populates="order", lazy="selectin", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Order(id={self.id}, user_id={self.user_id}, status={self.status})>"

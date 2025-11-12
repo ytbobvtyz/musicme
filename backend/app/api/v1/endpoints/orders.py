@@ -58,14 +58,14 @@ async def get_orders(
     return orders
 
 
-@router.get("/{order_id}", response_model=Order)
+@router.get("/{order_id}", response_model=OrderDetail)  # ← Меняем на OrderDetail
 async def get_order(
     order_id: UUID,
     db = Depends(get_db),
     current_user: UserSchema = Depends(get_current_user)
 ):
     """
-    Получить детальную информацию о заказе
+    Получить детальную информацию о заказе с треками
     """
     try:
         print(f"🔍 GET ORDER - Order ID: {order_id}, User ID: {current_user.id}")

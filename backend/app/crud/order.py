@@ -60,5 +60,18 @@ class CRUDOrder:
         
         result = await db.execute(query)
         return result.scalars().all()
-        
+
+async def get_by_id(self, db: AsyncSession, order_id: UUID) -> Optional[OrderModel]:
+    """Получить заказ по ID с треками"""
+    result = await db.execute(
+        select(OrderModel)
+        .where(OrderModel.id == order_id)
+        .options(
+            selectinload(OrderModel.theme), 
+            selectinload(OrderModel.genre),
+            selectinload(OrderModel.tracks)  # ← ДОБАВИТЬ ЭТУ СТРОКУ
+        )
+    )
+    return result.scalar_one_or_none()
+
 crud_order = CRUDOrder()
