@@ -1,9 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useEffect, useState } from 'react'
+import { useAdmin } from '@/hooks/useAdmin'
 
 const Header = () => {
   const { user, isAuthenticated } = useAuthStore()
+  const { isAdmin, loading } = useAdmin()
   const location = useLocation()
   const [scrolled, setScrolled] = useState(false)
 
@@ -58,6 +60,28 @@ const Header = () => {
                 >
                   Мои заказы
                 </Link>
+                <Link
+                  to="/examples"
+                  className={`text-sm md:text-base font-medium transition-colors duration-200 hover:text-primary-600 ${
+                    scrolled || !isHomePage ? 'text-gray-700' : 'text-gray-700'
+                  } ${location.pathname === '/examples' ? 'text-primary-600 font-semibold' : ''}`}
+                >
+                  Примеры
+                </Link>
+                {/* Вкладка Администрирование - только для админов */}
+                {!loading && isAdmin && (
+                  <Link
+                    to="/admin"
+                    className={`text-sm md:text-base font-medium transition-colors duration-200 hover:text-primary-600 ${
+                      scrolled || !isHomePage ? 'text-gray-700' : 'text-gray-700'
+                    } ${
+                      location.pathname === '/admin' ? 'text-primary-600 font-semibold' : ''
+                    }`}
+                  >
+                    Администрирование
+                  </Link>
+                )}
+                
                 <span
                   className={`text-sm md:text-base font-medium ${
                     scrolled || !isHomePage ? 'text-gray-600' : 'text-gray-600'

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import OrdersTab from '@/components/admin/OrdersTab'
 import TracksTab from '@/components/admin/TracksTab'
 import ExamplesTab from '@/components/admin/ExamplesTab'
+import StatsTab from '@/components/admin/StatsTab'
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('orders')
@@ -46,14 +47,5 @@ const AdminPage = () => {
     </AdminLayout>
   )
 }
-
-
-
-const StatsTab = () => (
-  <div>
-    <h2 className="text-lg font-medium mb-4">Статистика</h2>
-    <p className="text-gray-600">Здесь будет статистика</p>
-  </div>
-)
 
 export default AdminPage

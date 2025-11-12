@@ -8,6 +8,8 @@ from uuid import UUID
 from typing import List, Optional
 
 from app.models.example_track import ExampleTrack as ExampleTrackModel
+from app.models.theme import Theme as ThemeModel  # Добавляем импорт
+from app.models.genre import Genre as GenreModel   # Добавляем импорт
 from app.schemas.example_track import ExampleTrackCreate, ExampleTrackUpdate
 
 
@@ -19,17 +21,25 @@ class CRUDExampleTrack:
         theme: Optional[str] = None,
         active_only: bool = True
     ) -> List[ExampleTrackModel]:
-        """Получить все примеры треков с загрузкой связей"""
+        """Получить все примеры треков с загрузкой связей и фильтрацией"""
         query = select(ExampleTrackModel).options(
             selectinload(ExampleTrackModel.theme),
             selectinload(ExampleTrackModel.genre)
         )
         
+        # Фильтр по активности
         if active_only:
             query = query.where(ExampleTrackModel.is_active == True)
-            
-        # TODO: Добавить фильтрацию по genre/theme когда перейдем на названия
+
+        # Фильтрация по жанру (по названию)
+        if genre:
+            query = query.join(ExampleTrackModel.genre).where(GenreModel.name == genre)
         
+        # Фильтрация по теме (по названию)  
+        if theme:
+            query = query.join(ExampleTrackModel.theme).where(ThemeModel.name == theme)
+        
+        # Сортировка
         query = query.order_by(ExampleTrackModel.sort_order, ExampleTrackModel.created_at.desc())
         
         result = await db.execute(query)

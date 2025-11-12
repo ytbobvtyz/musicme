@@ -5,12 +5,16 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 from fastapi.responses import FileResponse, JSONResponse
 import os
 from sqlalchemy.orm import selectinload, joinedload
+from datetime import datetime, timezone, timedelta
 
+import logging
+
+from sqlalchemy import and_
 from app.core.database import get_db
 from app.core.deps import get_current_admin
 from app.schemas.order import Order, AdminOrder, OrderWithUser, OrderDetail
@@ -24,8 +28,11 @@ from app.crud.track import crud_track
 from app.crud.example_track import crud_example_track
 from app.core.file_storage import file_storage
 from app.models.example_track import ExampleTrack as ExampleTrackModel
+from app.schemas.stats import StatsResponse
+from app.crud.stats import crud_stats
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.get("/tracks/{track_id}/audio-public")
 async def get_track_audio_public(
@@ -546,3 +553,29 @@ async def delete_order_admin(
         await db.rollback()
         print(f"Error deleting order: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка при удалении заказа: {str(e)}")
+
+# Статистика
+
+# 
+
+@router.get("/stats", response_model=StatsResponse)
+async def get_admin_stats(
+    period: str = "month",
+    db: AsyncSession = Depends(get_db),
+    admin: UserModel = Depends(get_current_admin)
+):
+    """
+    Получить статистику для админки (реальная реализация)
+    """
+    try:
+        from app.crud.stats import crud_stats
+        
+        stats = await crud_stats.get_all_stats(db, period)
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Error generating stats: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при генерации статистики: {str(e)}"
+        )
