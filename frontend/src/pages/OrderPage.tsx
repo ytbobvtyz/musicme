@@ -9,8 +9,8 @@ import { TARIFF_PLANS, getTariffById, type TariffPlan } from '@/constants/tariff
 import OrderForm from '@/components/order/OrderForm'
 import Questionnaire from '@/components/order/Questionnaire'
 import OrderConfirmation from '@/components/order/OrderConfirmation'
-
-type OrderStep = 'tariff' | 'form' | 'questionnaire' | 'confirmation'
+import ContactForm from '@/components/order/ContactForm'
+type OrderStep = 'tariff' | 'form' | 'questionnaire' | 'contact' | 'confirmation'
 
 const OrderPage = () => {
   const navigate = useNavigate()
@@ -69,8 +69,19 @@ const OrderPage = () => {
 
   const handleQuestionnaireSubmit = (questionnaireData: any) => {
     setOrderData({ ...orderData, questionnaire: questionnaireData })
+    
+    if (selectedTariff.hasInterview) {
+      setCurrentStep('contact') // Новый шаг для премиум-тарифа
+    } else {
+      setCurrentStep('confirmation')
+    }
+  }
+
+  const handleContactSubmit = (contactData: any) => {
+    setOrderData({ ...orderData, contact: contactData })
     setCurrentStep('confirmation')
   }
+
 
   const getProgressSteps = () => {
     const baseSteps = [
@@ -81,6 +92,10 @@ const OrderPage = () => {
     
     if (selectedTariff.hasQuestionnaire) {
       baseSteps.splice(2, 0, { step: 'questionnaire', label: 'Анкета' })
+    }
+    
+    if (selectedTariff.hasInterview) {
+      baseSteps.splice(baseSteps.length - 1, 0, { step: 'contact', label: 'Контакты' })
     }
     
     return baseSteps
@@ -112,6 +127,14 @@ const OrderPage = () => {
             tariff={selectedTariff}
             onSubmit={handleQuestionnaireSubmit}
             onBack={() => setCurrentStep('form')}
+          />
+        )
+      case 'contact':
+        return (
+          <ContactForm
+            tariff={selectedTariff}
+            onSubmit={handleContactSubmit}
+            onBack={() => setCurrentStep('questionnaire')}
           />
         )
       case 'confirmation':

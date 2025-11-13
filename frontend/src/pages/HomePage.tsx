@@ -66,12 +66,13 @@ const HomePage = () => {
               Заказать песню
             </Link>
             <Link
-              to="#tariffs"
+              to="/examples"
               className="button-secondary border-blue-600 text-blue-600 hover:bg-blue-50 text-lg px-8 py-4"
             >
-              Выбрать тариф
+              Посмотреть примеры
             </Link>
           </div>
+
           
           {/* Updated decorative elements */}
           <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-200/30 rounded-full blur-3xl -z-10"></div>
@@ -291,12 +292,6 @@ const HomePage = () => {
               className="inline-block bg-white text-blue-600 px-10 py-4 rounded-full text-lg font-semibold hover:bg-gray-50 active:scale-95 transition-all duration-200 shadow-2xl"
             >
               Заказать песню
-            </Link>
-            <Link
-              to="#tariffs"
-              className="inline-block bg-transparent border-2 border-white text-white px-10 py-4 rounded-full text-lg font-semibold hover:bg-white/10 active:scale-95 transition-all duration-200"
-            >
-              Сравнить тарифы
             </Link>
           </div>
         </div>
