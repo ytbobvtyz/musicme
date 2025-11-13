@@ -1,25 +1,29 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
-import { createOrder } from '@/api/orders'
 import { getThemes } from '@/api/themes'
 import { getGenres } from '@/api/genres'
 import { Theme } from '@/types/theme'
 import { Genre } from '@/types/genre'
+import { TARIFF_PLANS, getTariffById, type TariffPlan } from '@/constants/tariffs'
+import OrderForm from '@/components/order/OrderForm'
+import Questionnaire from '@/components/order/Questionnaire'
+import OrderConfirmation from '@/components/order/OrderConfirmation'
+
+type OrderStep = 'tariff' | 'form' | 'questionnaire' | 'confirmation'
 
 const OrderPage = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { isAuthenticated } = useAuthStore()
+  
   const [themes, setThemes] = useState<Theme[]>([])
   const [genres, setGenres] = useState<Genre[]>([])
-  const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    theme_id: '',  // ← ИЗМЕНИЛОСЬ: теперь theme_id вместо theme
-    genre_id: '',  // ← ИЗМЕНИЛОСЬ: теперь genre_id вместо genre
-    recipient_name: '',
-    occasion: '',
-    details: '',
-  })
+  const [currentStep, setCurrentStep] = useState<OrderStep>('tariff')
+  const [selectedTariff, setSelectedTariff] = useState<TariffPlan>(
+    () => getTariffById(searchParams.get('tariff') || 'basic')
+  )
+  const [orderData, setOrderData] = useState<any>({})
 
   // Загружаем темы и жанры при монтировании
   useEffect(() => {
@@ -40,156 +44,231 @@ const OrderPage = () => {
     loadData()
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!isAuthenticated) {
+  // Проверяем авторизацию при переходе к форме
+  useEffect(() => {
+    if (currentStep !== 'tariff' && !isAuthenticated) {
       alert('Пожалуйста, войдите в систему')
-      return
+      navigate('/')
     }
+  }, [currentStep, isAuthenticated, navigate])
 
-    if (!formData.theme_id || !formData.genre_id) {
-      alert('Пожалуйста, выберите тему и жанр')
-      return
-    }
+  const handleTariffSelect = (tariff: TariffPlan) => {
+    setSelectedTariff(tariff)
+    setCurrentStep('form')
+  }
 
-    setLoading(true)
-    try {
-      await createOrder(formData)
-      navigate('/orders')
-    } catch (error) {
-      console.error('Ошибка при создании заказа:', error)
-      alert('Произошла ошибка при создании заказа')
-    } finally {
-      setLoading(false)
+  const handleFormSubmit = (formData: any) => {
+    setOrderData({ ...orderData, ...formData })
+    
+    if (selectedTariff.hasQuestionnaire) {
+      setCurrentStep('questionnaire')
+    } else {
+      setCurrentStep('confirmation')
     }
   }
 
+  const handleQuestionnaireSubmit = (questionnaireData: any) => {
+    setOrderData({ ...orderData, questionnaire: questionnaireData })
+    setCurrentStep('confirmation')
+  }
+
+  const getProgressSteps = () => {
+    const baseSteps = [
+      { step: 'tariff', label: 'Тариф' },
+      { step: 'form', label: 'Детали' },
+      { step: 'confirmation', label: 'Подтверждение' }
+    ]
+    
+    if (selectedTariff.hasQuestionnaire) {
+      baseSteps.splice(2, 0, { step: 'questionnaire', label: 'Анкета' })
+    }
+    
+    return baseSteps
+  }
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 'tariff':
+        return (
+          <TariffSelection 
+            selectedTariff={selectedTariff}
+            onTariffSelect={handleTariffSelect}
+          />
+        )
+      case 'form':
+        return (
+          <OrderForm
+            tariff={selectedTariff}
+            themes={themes}
+            genres={genres}
+            onSubmit={handleFormSubmit}
+            onBack={() => setCurrentStep('tariff')}
+            initialData={orderData}
+          />
+        )
+      case 'questionnaire':
+        return (
+          <Questionnaire
+            tariff={selectedTariff}
+            onSubmit={handleQuestionnaireSubmit}
+            onBack={() => setCurrentStep('form')}
+          />
+        )
+      case 'confirmation':
+        return (
+          <OrderConfirmation
+            orderData={orderData}
+            tariff={selectedTariff}
+          />
+        )
+    }
+  }
+
+  const progressSteps = getProgressSteps()
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-20 px-6">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-16 animate-fade-in">
-          <h1 className="text-headline md:text-display-sm font-bold text-gray-900 mb-4">
-            Оформите заказ
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Расскажите нам о получателе и поводе. Мы создадим уникальную песню специально для вас.
-          </p>
-        </div>
-
-        {/* Form */}
-        <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 animate-fade-in-up">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Повод <span className="text-red-500">*</span>
-              </label>
-              <select
-                required
-                value={formData.theme_id}
-                onChange={(e) => setFormData({ ...formData, theme_id: e.target.value })}
-                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 appearance-none cursor-pointer hover:bg-gray-100"
-              >
-                <option value="">Выберите повод</option>
-                {themes.map((theme) => (
-                  <option key={theme.id} value={theme.id}>
-                    {theme.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Жанр <span className="text-red-500">*</span>
-              </label>
-              <select
-                required
-                value={formData.genre_id}
-                onChange={(e) => setFormData({ ...formData, genre_id: e.target.value })}
-                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 appearance-none cursor-pointer hover:bg-gray-100"
-              >
-                <option value="">Выберите жанр</option>
-                {genres.map((genre) => (
-                  <option key={genre.id} value={genre.id}>
-                    {genre.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Остальные поля остаются без изменений */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Для кого (имя) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.recipient_name}
-                onChange={(e) => setFormData({ ...formData, recipient_name: e.target.value })}
-                maxLength={100}
-                placeholder="Имя получателя подарка"
-                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 hover:bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Описание повода
-              </label>
-              <textarea
-                value={formData.occasion}
-                onChange={(e) => setFormData({ ...formData, occasion: e.target.value })}
-                maxLength={200}
-                rows={3}
-                placeholder="Кратко опишите повод для песни"
-                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 resize-none hover:bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Особые пожелания
-              </label>
-              <textarea
-                value={formData.details}
-                onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-                maxLength={1000}
-                rows={6}
-                placeholder="Расскажите о получателе подарка, ваших отношениях, важных деталях для песни, любимых словах или фразах..."
-                className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 resize-none hover:bg-gray-100"
-              />
-              <p className="mt-2 text-sm text-gray-500">
-                {formData.details.length}/1000 символов
-              </p>
-            </div>
-
-            <div className="pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full button-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      <div className="max-w-4xl mx-auto">
+        {/* Progress Bar */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-4">
+            {progressSteps.map((step, index) => (
+              <div key={step.step} className="flex items-center flex-1">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200 ${
+                  currentStep === step.step 
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110' 
+                    : currentStep > step.step || (currentStep === 'confirmation' && index < progressSteps.length - 1)
+                    ? 'bg-green-500 border-green-500 text-white'
+                    : 'bg-white border-gray-300 text-gray-400'
+                }`}>
+                  {currentStep > step.step || (currentStep === 'confirmation' && index < progressSteps.length - 1) ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    Отправка...
-                  </span>
-                ) : (
-                  'Оформить заказ'
+                  ) : (
+                    index + 1
+                  )}
+                </div>
+                {index < progressSteps.length - 1 && (
+                  <div className={`flex-1 h-1 mx-2 transition-all duration-300 ${
+                    currentStep > step.step ? 'bg-green-500' : 'bg-gray-200'
+                  }`} />
                 )}
-              </button>
-            </div>
-          </form>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between text-sm text-gray-600">
+            {progressSteps.map((step) => (
+              <span key={step.step} className="text-center flex-1">
+                {step.label}
+              </span>
+            ))}
+          </div>
         </div>
+
+        {/* Current Step Content */}
+        {renderStep()}
       </div>
     </div>
   )
+}
+
+// Компонент выбора тарифа
+const TariffSelection = ({ selectedTariff, onTariffSelect }: {
+  selectedTariff: TariffPlan
+  onTariffSelect: (tariff: TariffPlan) => void
+}) => {
+  return (
+    <div className="animate-fade-in">
+      <div className="text-center mb-12">
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          Выберите тариф
+        </h1>
+        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          От быстрого поздравления до эксклюзивной персональной песни
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {TARIFF_PLANS.map((tariff) => (
+          <div
+            key={tariff.id}
+            className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-200 hover:shadow-xl ${
+              selectedTariff.id === tariff.id 
+                ? 'border-blue-500 shadow-xl scale-105' 
+                : 'border-gray-200'
+            }`}
+          >
+            {tariff.popular && (
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <div className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
+                  {tariff.badge}
+                </div>
+              </div>
+            )}
+
+            {tariff.badge && !tariff.popular && (
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <div className="bg-gray-600 text-white px-3 py-1 rounded-full text-xs font-medium">
+                  {tariff.badge}
+                </div>
+              </div>
+            )}
+
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">{tariff.name}</h3>
+              <p className="text-gray-600 text-sm mb-4">{tariff.description}</p>
+              
+              <div className="mb-4">
+                <div className="text-2xl font-bold text-gray-900">
+                  {formatPrice(tariff.price)}
+                </div>
+                <div className="text-sm text-gray-500 line-through">
+                  {formatPrice(tariff.originalPrice)}
+                </div>
+              </div>
+
+              <ul className="space-y-2 mb-6">
+                {tariff.features.map((feature, index) => (
+                  <li key={index} className="flex items-start gap-2 text-sm">
+                    <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-gray-700">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={() => onTariffSelect(tariff)}
+                className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors ${
+                  selectedTariff.id === tariff.id
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
+                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                {selectedTariff.id === tariff.id ? 'Выбрано' : 'Выбрать'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="text-center mt-12">
+        <button
+          onClick={() => onTariffSelect(selectedTariff)}
+          className="bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg"
+        >
+          Продолжить с тарифом "{selectedTariff.name}"
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Вспомогательная функция для форматирования цены
+const formatPrice = (price: number): string => {
+  return new Intl.NumberFormat('ru-RU').format(price) + ' ₽'
 }
 
 export default OrderPage

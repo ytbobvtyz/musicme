@@ -27,7 +27,7 @@ wheels/
 venv/
 ENV/
 env/
-
+uploads/
 # Node
 node_modules/
 npm-debug.log*
