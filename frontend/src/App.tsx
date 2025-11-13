@@ -8,6 +8,7 @@ import OrderDetailPage from './pages/OrderDetailPage'
 import TrackPage from './pages/TrackPage'
 import ExamplesPage from './pages/ExamplePage'
 import AdminPage from './pages/AdminPage'
+import OrderSuccessPage from './pages/OrderSuccessPage'
 import { useAuthStore } from './store/authStore'
 
 function App() {
@@ -48,6 +49,7 @@ function App() {
           <Route path="/tracks/:trackId" element={<TrackPage />} />
           <Route path="/examples" element={<ExamplesPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/order/success" element={<OrderSuccessPage />} />
         </Routes>
       </Layout>
     </Router>

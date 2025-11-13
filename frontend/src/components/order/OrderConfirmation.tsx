@@ -7,22 +7,27 @@ import { useNavigate } from 'react-router-dom'
 interface OrderConfirmationProps {
   orderData: any
   tariff: TariffPlan
+  onRequireAuth?: () => void
+  isGuestMode?: boolean
 }
 
-const OrderConfirmation = ({ orderData, tariff }: OrderConfirmationProps) => {
+const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: OrderConfirmationProps) => {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuthStore()
   const [loading, setLoading] = useState(false)
 
   const handleCreateOrder = async () => {
-    if (!isAuthenticated) {
-      alert('Пожалуйста, войдите в систему')
+    if (!isAuthenticated && !isGuestMode) {
+      if (onRequireAuth) {
+        onRequireAuth()
+      } else {
+        alert('Пожалуйста, войдите в систему')
+      }
       return
     }
-
+  
     setLoading(true)
     try {
-      // Подготавливаем данные для API
       const orderPayload = {
         theme_id: orderData.theme_id,
         genre_id: orderData.genre_id,
@@ -31,12 +36,19 @@ const OrderConfirmation = ({ orderData, tariff }: OrderConfirmationProps) => {
         details: orderData.details,
         preferences: {
           tariff: tariff.id,
-          ...(tariff.hasQuestionnaire && { questionnaire: orderData.questionnaire })
+          ...(tariff.hasQuestionnaire && { questionnaire: orderData.questionnaire }),
+          ...(tariff.hasInterview && { contact: orderData.contact })
         }
       }
-
+  
       await createOrder(orderPayload)
-      navigate('/orders')
+      
+      navigate('/order/success', { 
+        state: { 
+          guestOrder: isGuestMode,
+          orderData: orderPayload 
+        } 
+      })
     } catch (error) {
       console.error('Ошибка при создании заказа:', error)
       alert('Произошла ошибка при создании заказа')
@@ -54,6 +66,13 @@ const OrderConfirmation = ({ orderData, tariff }: OrderConfirmationProps) => {
         <p className="text-gray-600">
           Проверьте данные перед созданием заказа
         </p>
+        {isGuestMode && (
+          <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3 inline-block">
+            <p className="text-sm text-yellow-800">
+              ⚠️ Вы оформляете заказ как гость
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 mb-6">
@@ -112,12 +131,29 @@ const OrderConfirmation = ({ orderData, tariff }: OrderConfirmationProps) => {
             </div>
           </div>
         )}
+
+        {tariff.hasInterview && orderData.contact && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">Контактные данные</h4>
+            <dl className="space-y-2 text-sm text-gray-700">
+              <div>
+                <dt className="font-medium">Способ связи:</dt>
+                <dd>{orderData.contact.contact_method}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Контакт:</dt>
+                <dd>{orderData.contact.contact_value}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-4">
         <button
           onClick={() => window.history.back()}
-          className="flex-1 py-3 px-6 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
+          disabled={loading}
+          className="flex-1 py-3 px-6 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 disabled:opacity-50 transition-colors"
         >
           Назад
         </button>
@@ -129,6 +165,22 @@ const OrderConfirmation = ({ orderData, tariff }: OrderConfirmationProps) => {
           {loading ? 'Создание...' : 'Создать заказ'}
         </button>
       </div>
+
+      {isGuestMode && (
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-start gap-3">
+            <div className="text-blue-600 mt-0.5">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="text-sm text-blue-800">
+              <p className="font-medium">Гостевой заказ</p>
+              <p className="mt-1">После создания заказа мы предложим вам создать аккаунт для отслеживания статуса и получения уведомлений.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -3,13 +3,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getThemes } from '@/api/themes'
 import { getGenres } from '@/api/genres'
+import { createOrder } from '@/api/orders'
 import { Theme } from '@/types/theme'
 import { Genre } from '@/types/genre'
 import { TARIFF_PLANS, getTariffById, type TariffPlan } from '@/constants/tariffs'
 import OrderForm from '@/components/order/OrderForm'
 import Questionnaire from '@/components/order/Questionnaire'
-import OrderConfirmation from '@/components/order/OrderConfirmation'
 import ContactForm from '@/components/order/ContactForm'
+import OrderConfirmation from '@/components/order/OrderConfirmation'
+import AuthModal from '@/components/order/AuthModal'
+
 type OrderStep = 'tariff' | 'form' | 'questionnaire' | 'contact' | 'confirmation'
 
 const OrderPage = () => {
@@ -24,6 +27,8 @@ const OrderPage = () => {
     () => getTariffById(searchParams.get('tariff') || 'basic')
   )
   const [orderData, setOrderData] = useState<any>({})
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [isGuestMode, setIsGuestMode] = useState(false)
 
   // Загружаем темы и жанры при монтировании
   useEffect(() => {
@@ -44,13 +49,12 @@ const OrderPage = () => {
     loadData()
   }, [])
 
-  // Проверяем авторизацию при переходе к форме
+  // Если переключились в гостевой режим, создаем заказ
   useEffect(() => {
-    if (currentStep !== 'tariff' && !isAuthenticated) {
-      alert('Пожалуйста, войдите в систему')
-      navigate('/')
+    if (isGuestMode && currentStep === 'confirmation') {
+      handleGuestOrderCreation()
     }
-  }, [currentStep, isAuthenticated, navigate])
+  }, [isGuestMode, currentStep])
 
   const handleTariffSelect = (tariff: TariffPlan) => {
     setSelectedTariff(tariff)
@@ -71,7 +75,7 @@ const OrderPage = () => {
     setOrderData({ ...orderData, questionnaire: questionnaireData })
     
     if (selectedTariff.hasInterview) {
-      setCurrentStep('contact') // Новый шаг для премиум-тарифа
+      setCurrentStep('contact')
     } else {
       setCurrentStep('confirmation')
     }
@@ -82,6 +86,50 @@ const OrderPage = () => {
     setCurrentStep('confirmation')
   }
 
+  const handleRequireAuth = () => {
+    // Сохраняем данные в localStorage
+    localStorage.setItem('pendingOrder', JSON.stringify({
+      orderData,
+      tariff: selectedTariff.id,
+      timestamp: Date.now()
+    }))
+    setShowAuthModal(true)
+  }
+
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false)
+    // Данные автоматически восстановятся в OrderConfirmation
+  }
+
+  const handleGuestOrderCreation = async () => {
+    try {
+      const orderPayload = {
+        theme_id: orderData.theme_id,
+        genre_id: orderData.genre_id,
+        recipient_name: orderData.recipient_name,
+        occasion: orderData.occasion,
+        details: orderData.details,
+        preferences: {
+          tariff: selectedTariff.id,
+          ...(selectedTariff.hasQuestionnaire && { questionnaire: orderData.questionnaire }),
+          ...(selectedTariff.hasInterview && { contact: orderData.contact })
+        }
+      }
+
+      await createOrder(orderPayload)
+      console.log('Гостевой заказ:', orderPayload)
+      // Переходим на страницу успеха
+      navigate('/order/success', { 
+        state: { 
+          guestOrder: true,
+          orderData: orderPayload 
+        } 
+      })
+    } catch (error) {
+      console.error('Ошибка при создании гостевого заказа:', error)
+      alert('Произошла ошибка при создании заказа')
+    }
+  }
 
   const getProgressSteps = () => {
     const baseSteps = [
@@ -142,6 +190,8 @@ const OrderPage = () => {
           <OrderConfirmation
             orderData={orderData}
             tariff={selectedTariff}
+            onRequireAuth={handleRequireAuth}
+            isGuestMode={isGuestMode}
           />
         )
     }
@@ -192,6 +242,14 @@ const OrderPage = () => {
         {/* Current Step Content */}
         {renderStep()}
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+        onGuestMode={() => setIsGuestMode(true)}
+      />
     </div>
   )
 }
