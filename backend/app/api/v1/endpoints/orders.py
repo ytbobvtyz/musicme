@@ -28,7 +28,8 @@ async def create_order(
     """
     try:
         logger.info(f"Создание заказа для пользователя {current_user.id}")
-        
+        print(f"🔍 DEBUG OrderCreate data: {order_data.dict()}")  # ← ДОБАВИТЬ
+        print(f"🔍 DEBUG Tariff from request: {order_data.tariff_plan}")  # ← ДОБАВИ
         # Валидация бизнес-логики
         order_service.validate_order_data(order_data)
         

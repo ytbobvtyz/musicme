@@ -14,9 +14,22 @@ class OrderService:
     @staticmethod
     def validate_order_data(order_data: OrderCreate) -> None:
         """Валидация данных заказа перед созданием"""
-        tariff_plan = order_data.tariff_plan
+        # ⬇️ ИСПРАВЛЯЕМ: Используем тот же алгоритм что в CRUD
+        tariff_plan = None
         
-        # ⬇️ РАСКОММЕНТИРУЕМ проверку тарифа
+        # 1. Сначала проверяем preferences.tariff
+        if order_data.preferences and order_data.preferences.get('tariff'):
+            tariff_plan = order_data.preferences['tariff']
+        
+        # 2. Если нет в preferences, проверяем корень
+        if not tariff_plan and order_data.tariff_plan:
+            tariff_plan = order_data.tariff_plan
+        
+        # 3. Если все еще нет - используем basic
+        tariff_plan = tariff_plan or 'basic'
+        
+        print(f"🔍 OrderService tariff decision: {tariff_plan}")
+        
         from app.core.tariffs import TARIFF_CONFIG
         from app.models.tariff_plan import TariffPlan
         
@@ -29,7 +42,7 @@ class OrderService:
         
         tariff_config = get_tariff_config(TariffPlan(tariff_plan))
         
-        # ⬇️ РАСКОММЕНТИРУЕМ проверку анкеты для продвинутых тарифов
+        # Проверяем анкету для продвинутых тарифов
         if tariff_config['has_questionnaire']:
             if not order_data.preferences or not order_data.preferences.get('questionnaire'):
                 raise HTTPException(
@@ -37,7 +50,7 @@ class OrderService:
                     detail=f"Для тарифа '{tariff_plan}' требуется заполнить анкету"
                 )
         
-        # ⬇️ РАСКОММЕНТИРУЕМ проверку контактов для премиум тарифа
+        # Проверяем контакты для премиум тарифа
         if tariff_config['has_interview']:
             if not order_data.preferences or not order_data.preferences.get('contact'):
                 raise HTTPException(
@@ -51,16 +64,28 @@ class OrderService:
         user_id: UUID
     ) -> Dict[str, Any]:
         """Подготовка данных заказа с автоматической настройкой тарифа"""
-        # ⬇️ РАСКОММЕНТИРУЕМ полную логику подготовки
-        tariff_config = get_tariff_config(TariffPlan(order_data.tariff_plan))
+        # ⬇️ Тот же алгоритм определения тарифа
+        tariff_plan = None
+        
+        if order_data.preferences and order_data.preferences.get('tariff'):
+            tariff_plan = order_data.preferences['tariff']
+        
+        if not tariff_plan and order_data.tariff_plan:
+            tariff_plan = order_data.tariff_plan
+        
+        tariff_plan = tariff_plan or 'basic'
+        
+        tariff_config = get_tariff_config(TariffPlan(tariff_plan))
         
         order_dict = order_data.dict()
+        
+        # ⬇️ ОБНОВЛЯЕМ tariff_plan в корне
+        order_dict['tariff_plan'] = tariff_plan
         
         # Автоматически устанавливаем поля из конфига тарифа
         order_dict.update({
             'price': tariff_config['price'],
             'rounds_remaining': tariff_config['rounds'],
-            # deadline_at вычисляется в CRUD
         })
         
         # Устанавливаем пользователя

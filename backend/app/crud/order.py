@@ -29,8 +29,26 @@ class CRUDOrder:
             from datetime import datetime, timezone, timedelta
             from app.core.tariffs import get_tariff_config
             
-            # ⬇️ РАСКОММЕНТИРУЕМ полную логику тарифов
-            tariff_plan = order_dict.get('tariff_plan', 'basic')
+            # ⬇️ ИСПРАВЛЯЕМ ПРИОРИТЕТ: preferences.tariff важнее чем tariff_plan
+            tariff_plan = None
+            
+            # 1. Сначала проверяем preferences.tariff (основной источник)
+            if order_dict.get('preferences') and order_dict['preferences'].get('tariff'):
+                tariff_plan = order_dict['preferences']['tariff']
+                print(f"🎯 Using tariff from preferences: {tariff_plan}")
+            
+            # 2. Если нет в preferences, проверяем корень
+            if not tariff_plan and order_dict.get('tariff_plan'):
+                tariff_plan = order_dict['tariff_plan']
+                print(f"🎯 Using tariff from root: {tariff_plan}")
+            
+            # 3. Если все еще нет - используем basic
+            tariff_plan = tariff_plan or 'basic'
+            print(f"🎯 Final tariff decision: {tariff_plan}")
+            
+            # ⬇️ ОБНОВЛЯЕМ tariff_plan в корне для consistency
+            order_dict['tariff_plan'] = tariff_plan
+            
             tariff_config = get_tariff_config(tariff_plan)
             
             # Автоматически устанавливаем цену и правки из конфига
@@ -41,7 +59,7 @@ class CRUDOrder:
             deadline_days = tariff_config['deadline_days']
             order_dict['deadline_at'] = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=deadline_days)
             
-            # ⬇️ РАСКОММЕНТИРУЕМ валидацию для продвинутых тарифов
+            # Валидация для продвинутых тарифов
             if tariff_config['has_questionnaire']:
                 if not order_dict.get('preferences') or not order_dict['preferences'].get('questionnaire'):
                     from fastapi import HTTPException, status
