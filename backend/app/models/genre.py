@@ -2,7 +2,7 @@
 Модель жанра трека
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -17,7 +17,7 @@ class Genre(Base):
     name = Column(String, nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     
     def __repr__(self):
         return f"<Genre(id={self.id}, name={self.name})>"

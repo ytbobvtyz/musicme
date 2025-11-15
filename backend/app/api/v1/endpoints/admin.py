@@ -23,7 +23,6 @@ from app.schemas.example_track import ExampleTrack, ExampleTrackCreate, ExampleT
 from app.models.user import User as UserModel
 from app.models.track import Track as TrackModel  # ⬅️ ДОБАВЬ ЭТОТ ИМПОРТ
 from app.models.order import Order as OrderModel   # ⬅️ И ЭТОТ ТОЖЕ
-from app.crud.order import crud_order
 from app.crud.track import crud_track
 from app.crud.example_track import crud_example_track
 from app.core.file_storage import file_storage

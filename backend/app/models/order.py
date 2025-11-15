@@ -2,7 +2,7 @@
 Модель заказа
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from sqlalchemy import Column, String, DateTime, ForeignKey, Text, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
@@ -33,10 +33,9 @@ class Order(Base):
     theme_id = Column(UUID(as_uuid=True), ForeignKey("themes.id"), nullable=False, index=True)
     genre_id = Column(UUID(as_uuid=True), ForeignKey("genres.id"), nullable=False, index=True)
     
-    # ⬇️ НОВЫЕ ПОЛЯ ДЛЯ ТАРИФОВ И ГОСТЕЙ
+    # ⬇️ НОВЫЕ ПОЛЯ ДЛЯ ТАРИФОВ
     tariff_plan = Column(String, nullable=False, default=TariffPlan.BASIC, index=True)
-    guest_email = Column(String, nullable=True, index=True)  # для гостевых заказов
-    
+
     recipient_name = Column(String, nullable=False)
     occasion = Column(String, nullable=True)
     details = Column(Text, nullable=True)
@@ -52,8 +51,8 @@ class Order(Base):
     
     interview_link = Column(String, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
+    updated_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), onupdate=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     
     # Связи
     user = relationship("User", backref="orders")
@@ -69,13 +68,15 @@ class Order(Base):
     
     def calculate_deadline(self):
         """Вычисляем дедлайн на основе тарифа"""
-        days = get_tariff_deadline_days(self.tariff_plan)
-        return datetime.utcnow() + timedelta(days=days)
+        # days = get_tariff_deadline_days(self.tariff_plan)
+        days = 1
+        return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=days)
         
-    @property
-    def is_paid(self):
-        """Виртуальное свойство для обратной совместимости"""
-        return self.status == OrderStatus.PAID
+    # @property
+    # def is_paid(self):
+    #     """Виртуальное свойство для обратной совместимости"""
+    #     return self.status == OrderStatus.PAID
     
     def __repr__(self):
         return f"<Order(id={self.id}, tariff={self.tariff_plan}, status={self.status})>"
+

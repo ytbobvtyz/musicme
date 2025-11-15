@@ -61,34 +61,6 @@ async def get_current_user(
     
     return user
 
-async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-) -> Optional[User]:
-    """
-    Опциональное получение текущего пользователя
-    Возвращает пользователя или None (для гостевого доступа)
-    """
-    if not credentials:
-        return None
-    
-    token = credentials.credentials
-    
-    try:
-        payload = verify_token(token)
-        if not payload:
-            return None
-        
-        user_id = payload.get("sub")
-        if not user_id:
-            return None
-        
-        user = await crud_user.get_by_id(db, UUID(user_id))
-        return user
-        
-    except Exception:
-        return None
-
 async def get_current_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:

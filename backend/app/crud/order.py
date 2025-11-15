@@ -7,56 +7,74 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import and_, or_
 from uuid import UUID
 from typing import List, Optional
-from datetime import datetime
-
+from datetime import datetime, timedelta, timezone
+from fastapi import HTTPException, status
 from app.models.order import Order as OrderModel, OrderStatus, TariffPlan
 from app.schemas.order import OrderCreate, OrderUpdate
-
+from app.core.tariffs import get_tariff_config, get_tariff_price, get_tariff_rounds
 
 class CRUDOrder:
     async def create(
         self, 
         db: AsyncSession, 
-        order_data: OrderCreate, 
-        user_id: Optional[UUID] = None,
-        guest_email: Optional[str] = None
+        order_data: dict,
+        user_id: UUID
     ) -> OrderModel:
-        """Создать новый заказ (с поддержкой гостевых заказов)"""
-        order_dict = order_data.dict()
-        
-        # Для гостевых заказов
-        if guest_email and not user_id:
-            order_dict['guest_email'] = guest_email
+        """Создать новый заказ с автоматической настройкой тарифа"""
+        try:
+            order_dict = order_data
             
-        # Для авторизованных пользователей
-        if user_id:
+            print(f"📦 Order dict received: {order_dict}")
+            
+            from datetime import datetime, timezone, timedelta
+            from app.core.tariffs import get_tariff_config
+            
+            # ⬇️ РАСКОММЕНТИРУЕМ полную логику тарифов
+            tariff_plan = order_dict.get('tariff_plan', 'basic')
+            tariff_config = get_tariff_config(tariff_plan)
+            
+            # Автоматически устанавливаем цену и правки из конфига
+            order_dict['price'] = tariff_config['price']
+            order_dict['rounds_remaining'] = tariff_config['rounds']
+            
+            # Вычисляем дедлайн
+            deadline_days = tariff_config['deadline_days']
+            order_dict['deadline_at'] = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=deadline_days)
+            
+            # ⬇️ РАСКОММЕНТИРУЕМ валидацию для продвинутых тарифов
+            if tariff_config['has_questionnaire']:
+                if not order_dict.get('preferences') or not order_dict['preferences'].get('questionnaire'):
+                    from fastapi import HTTPException, status
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Для тарифа '{tariff_plan}' требуется заполнить анкету"
+                    )
+            
+            # Устанавливаем user_id
             order_dict['user_id'] = user_id
+                
+            print(f"🎯 Final order data: {order_dict}")
+            print(f"💰 Tariff: {tariff_plan}, Price: {tariff_config['price']}, Rounds: {tariff_config['rounds']}, Deadline: {deadline_days} days")
+                
+            order = OrderModel(**order_dict)
+            db.add(order)
+            await db.commit()
+            await db.refresh(order)
+            return order
             
-        order = OrderModel(**order_dict)
-        db.add(order)
-        await db.commit()
-        await db.refresh(order)
-        return order
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"❌ Error in CRUD order create: {e}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
+            raise
 
     async def get_by_user(self, db: AsyncSession, user_id: UUID) -> List[OrderModel]:
         """Получить заказы пользователя"""
         result = await db.execute(
             select(OrderModel)
             .where(OrderModel.user_id == user_id)
-            .options(
-                selectinload(OrderModel.theme), 
-                selectinload(OrderModel.genre),
-                selectinload(OrderModel.tracks)
-            )
-            .order_by(OrderModel.created_at.desc())
-        )
-        return result.scalars().all()
-
-    async def get_by_guest_email(self, db: AsyncSession, guest_email: str) -> List[OrderModel]:
-        """Получить заказы по guest_email"""
-        result = await db.execute(
-            select(OrderModel)
-            .where(OrderModel.guest_email == guest_email)
             .options(
                 selectinload(OrderModel.theme), 
                 selectinload(OrderModel.genre),
@@ -150,7 +168,7 @@ class CRUDOrder:
             select(OrderModel)
             .where(
                 and_(
-                    OrderModel.deadline_at < datetime.utcnow(),
+                    OrderModel.deadline_at < datetime.now(timezone.utc).replace(tzinfo=None),
                     OrderModel.status.in_([
                         OrderStatus.DRAFT,
                         OrderStatus.WAITING_INTERVIEW, 
@@ -166,22 +184,5 @@ class CRUDOrder:
             )
         )
         return result.scalars().all()
-
-    async def assign_to_user(
-        self, 
-        db: AsyncSession, 
-        order_id: UUID, 
-        user_id: UUID
-    ) -> Optional[OrderModel]:
-        """Привязать гостевой заказ к пользователю"""
-        order = await self.get_by_id(db, order_id)
-        if not order:
-            return None
-            
-        order.user_id = user_id
-        order.guest_email = None  # Очищаем guest_email после привязки
-        await db.commit()
-        await db.refresh(order)
-        return order
 
 crud_order = CRUDOrder()

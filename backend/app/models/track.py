@@ -2,7 +2,7 @@
 Модель музыкального трека
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -33,7 +33,7 @@ class Track(Base):
     audio_filename = Column(String, nullable=True)
     audio_size = Column(Integer, nullable=True)
     audio_mimetype = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     
     # Связи
     order = relationship("Order", back_populates="tracks")

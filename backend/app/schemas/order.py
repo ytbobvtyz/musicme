@@ -20,8 +20,7 @@ class OrderBase(BaseModel):
     genre_id: UUID
     # ⬇️ НОВЫЕ ПОЛЯ ДЛЯ ТАРИФОВ
     tariff_plan: str = Field(default="basic")
-    guest_email: Optional[str] = Field(None)
-    price: int = Field(..., gt=0)  # цена должна быть > 0
+    # price: int = Field(..., gt=0)  # цена должна быть > 0
 
 class OrderCreate(OrderBase):
     """Схема для создания заказа"""

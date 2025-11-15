@@ -3,7 +3,7 @@
 Модель примера трека для демонстрации
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -34,7 +34,7 @@ class ExampleTrack(Base):
     duration = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     sort_order = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     cover_filename = Column(String, nullable=True)
     # Связи
     theme = relationship("Theme")  # ← НОВОЕ
