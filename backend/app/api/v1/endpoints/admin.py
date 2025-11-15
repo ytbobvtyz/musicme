@@ -176,28 +176,23 @@ async def upload_track_to_order(
 @router.get("/orders", response_model=List[OrderWithUser])
 async def get_all_orders(
     status: Optional[str] = Query(None),
+    tariff: Optional[str] = Query(None),  # ⬅️ НОВЫЙ ПАРАМЕТР
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Получить все заказы (админ) с информацией о пользователях и связями
+    Получить все заказы (админ) с фильтрацией по статусу и тарифу
     """
-    query = select(OrderModel).options(
-        selectinload(OrderModel.user),
-        selectinload(OrderModel.theme),   # ← ДОБАВЛЯЕМ
-        selectinload(OrderModel.genre)    # ← ДОБАВЛЯЕМ
+    orders = await crud_order.get_all(
+        db, 
+        status_filter=status,
+        tariff_filter=tariff,  # ⬅️ ПЕРЕДАЕМ ФИЛЬТР
+        limit=limit, 
+        offset=offset
     )
-    
-    if status:
-        query = query.where(OrderModel.status == status)
-    
-    query = query.order_by(OrderModel.created_at.desc()).limit(limit).offset(offset)
-    result = await db.execute(query)
-    orders = result.scalars().all()
     return orders
-
 
 @router.get("/orders/{order_id}", response_model=OrderDetail)
 async def get_order_admin(

@@ -22,7 +22,7 @@ class User(Base):
     telegram_username = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False, nullable=False)
     is_producer = Column(Boolean, default=False, nullable=False)    
-
+    registration_source = Column(String, default="oauth", nullable=False)  # oauth, guest_conversion
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"

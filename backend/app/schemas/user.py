@@ -4,7 +4,7 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserBase(BaseModel):
@@ -23,7 +23,8 @@ class User(UserBase):
     """Схема пользователя"""
     id: UUID
     created_at: datetime
+    # ⬇️ НОВОЕ ПОЛЕ ДЛЯ АНАЛИТИКИ
+    registration_source: str = Field(default="oauth")
     
     class Config:
         from_attributes = True
-

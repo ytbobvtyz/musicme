@@ -1,16 +1,17 @@
 """
 CRUD-утилиты для работы с пользователями
 """
-from typing import Optional
+from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
 from app.models.user import User
 from app.schemas.telegram import TelegramAuth
 
 
 class CRUDUser:
-    async def get_by_id(self, db: AsyncSession, user_id) -> Optional[User]:
+    async def get_by_id(self, db: AsyncSession, user_id: UUID) -> Optional[User]:
         stmt = select(User).where(User.id == user_id)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
@@ -26,6 +27,7 @@ class CRUDUser:
         email: str,
         name: Optional[str] = None,
         avatar_url: Optional[str] = None,
+        registration_source: str = "oauth"
     ) -> User:
         user = await self.get_by_email(db, email)
         if user:
@@ -42,7 +44,12 @@ class CRUDUser:
                 await db.refresh(user)
             return user
         # Создаем нового пользователя
-        user = User(email=email, name=name, avatar_url=avatar_url)
+        user = User(
+            email=email, 
+            name=name, 
+            avatar_url=avatar_url,
+            registration_source=registration_source
+        )
         db.add(user)
         await db.commit()
         await db.refresh(user)
@@ -63,14 +70,14 @@ class CRUDUser:
             email=f"telegram_{telegram_data.id}@musicme.ru",
             telegram_username=telegram_data.username,
             avatar_url=telegram_data.photo_url,
-            is_active=True
+            registration_source="telegram"
         )
         db.add(user)
         await db.commit()
         await db.refresh(user)
         return user
 
-    async def update_telegram_data(self, db: AsyncSession, user_id, telegram_data: TelegramAuth) -> User:
+    async def update_telegram_data(self, db: AsyncSession, user_id: UUID, telegram_data: TelegramAuth) -> User:
         """Обновить данные пользователя из Telegram"""
         user = await self.get_by_id(db, user_id)
         if user:
@@ -80,6 +87,35 @@ class CRUDUser:
             await db.commit()
             await db.refresh(user)
         return user
+
+    async def convert_guest_to_user(
+        self, 
+        db: AsyncSession, 
+        guest_email: str, 
+        user_data: dict
+    ) -> Optional[User]:
+        """Конвертировать гостя в полноценного пользователя"""
+        # Создаем нового пользователя
+        user = User(
+            email=user_data['email'],
+            name=user_data.get('name'),
+            registration_source="guest_conversion"
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user
+
+    async def get_by_registration_source(
+        self, 
+        db: AsyncSession, 
+        source: str
+    ) -> List[User]:
+        """Получить пользователей по источнику регистрации"""
+        result = await db.execute(
+            select(User).where(User.registration_source == source)
+        )
+        return result.scalars().all()
 
 
 # Создаем экземпляр CRUDUser

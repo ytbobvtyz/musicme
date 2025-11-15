@@ -4,7 +4,7 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.track import TrackStatus
 
@@ -16,14 +16,13 @@ class TrackBase(BaseModel):
     full_url: Optional[str] = None
     duration: Optional[int] = None
     status: Optional[str] = None
-
+    # ⬇️ НОВОЕ ПОЛЕ ДЛЯ PREVIEW
+    is_preview: bool = Field(default=False)
 
 class TrackCreate(TrackBase):
     """Схема для создания трека"""
     order_id: UUID
     suno_id: str
-    audio_url: str
-
 
 class TrackAdminCreate(BaseModel):
     """Схема для добавления существующих треков через админку"""
@@ -36,25 +35,18 @@ class TrackAdminCreate(BaseModel):
     class Config:
         from_attributes = True
 
-
 class TrackUpdate(BaseModel):
     suno_id: Optional[str] = None
     preview_url: Optional[str] = None
     full_url: Optional[str] = None
     title: Optional[str] = None
     status: Optional[str] = None
+    is_preview: Optional[bool] = None
 
-
-class Track(BaseModel):
+class Track(TrackBase):
     id: UUID
     order_id: UUID
-    suno_id: Optional[str] = None
-    preview_url: Optional[str] = None
-    full_url: Optional[str] = None
-    title: Optional[str] = None
-    duration: Optional[int] = None
-    is_paid: bool = False
-    status: str
+    # ⬇️ УДАЛЯЕМ is_paid - оплачивается заказ, а не трек
     created_at: datetime
     
     # Audio fields
@@ -64,7 +56,6 @@ class Track(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class TrackWithOrder(Track):
     """Схема трека с информацией о заказе для админки"""
@@ -76,13 +67,13 @@ class TrackWithOrder(Track):
             datetime: lambda v: v.isoformat() if v else None
         }
 
-# В schemas/track.py добавь
 class TrackSimple(BaseModel):
     """Упрощенная схема трека для отладки"""
     id: UUID
     order_id: UUID
     title: Optional[str] = None
     status: str
+    is_preview: bool = False
     audio_filename: Optional[str] = None
     audio_size: Optional[int] = None
     audio_mimetype: Optional[str] = None

@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, orders, tracks, payments, admin, themes, genres, example_tracks
+from app.api.v1.endpoints import auth, orders, tracks, payments, admin, themes, genres, example_tracks, tariffs
 
 api_router = APIRouter()
 
@@ -16,6 +16,7 @@ api_router.include_router(tracks.router, prefix="/tracks", tags=["tracks"])
 api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(example_tracks.router, tags=["example-tracks"])
+api_router.include_router(tariffs.router, prefix="/tariffs", tags=["tariffs"])
 
 from app.api.v1.endpoints import test
 api_router.include_router(test.router, prefix="/test", tags=["test"])

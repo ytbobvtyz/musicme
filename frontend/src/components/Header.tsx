@@ -37,7 +37,7 @@ const Header = () => {
                 : 'text-gray-900'
             }`}
           >
-            Mysong
+            music me
           </Link>
           
           <div className="flex items-center gap-8">

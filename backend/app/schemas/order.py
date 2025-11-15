@@ -18,19 +18,28 @@ class OrderBase(BaseModel):
     preferences: Optional[Dict[str, Any]] = None
     theme_id: UUID
     genre_id: UUID
-
+    # ⬇️ НОВЫЕ ПОЛЯ ДЛЯ ТАРИФОВ
+    tariff_plan: str = Field(default="basic")
+    guest_email: Optional[str] = Field(None)
+    price: int = Field(..., gt=0)  # цена должна быть > 0
 
 class OrderCreate(OrderBase):
     """Схема для создания заказа"""
     pass
 
+class OrderUpdate(BaseModel):
+    """Схема для обновления заказа"""
+    status: Optional[str] = None
+    rounds_remaining: Optional[int] = None
+    interview_link: Optional[str] = None
 
 class Order(OrderBase):
     id: UUID
     user_id: UUID
     status: str
+    deadline_at: datetime  # ⬅️ ЗАМЕНЯЕМ estimated_time
+    rounds_remaining: int = Field(default=0)
     interview_link: Optional[str] = None
-    estimated_time: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     
@@ -41,11 +50,9 @@ class Order(OrderBase):
     class Config:
         from_attributes = True
 
-
 class OrderDetail(Order):
     """Детальная схема заказа с треками"""
     tracks: List[Track] = []
-
 
 class AdminOrder(Order):
     """Схема заказа для админки с пользователем"""
@@ -54,7 +61,6 @@ class AdminOrder(Order):
 
     class Config:
         from_attributes = True
-
 
 class OrderWithUser(Order):
     """Схема заказа с информацией о пользователе"""
