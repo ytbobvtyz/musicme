@@ -21,3 +21,36 @@ export interface TariffPlan {
 export interface TariffListResponse {
   tariffs: TariffPlan[]
 }
+
+export interface TariffCreate {
+  code: string
+  name: string
+  description: string
+  price: number
+  original_price?: number
+  deadline_days: number
+  rounds: number
+  has_questionnaire: boolean
+  has_interview: boolean
+  features: string[]
+  badge?: string
+  popular: boolean
+  is_active: boolean
+  sort_order: number
+}
+
+export interface TariffUpdate {
+  name?: string
+  description?: string
+  price?: number
+  original_price?: number
+  deadline_days?: number
+  rounds?: number
+  has_questionnaire?: boolean
+  has_interview?: boolean
+  features?: string[]
+  badge?: string
+  popular?: boolean
+  is_active?: boolean
+  sort_order?: number
+}

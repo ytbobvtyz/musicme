@@ -29,6 +29,7 @@ from app.core.file_storage import file_storage
 from app.models.example_track import ExampleTrack as ExampleTrackModel
 from app.schemas.stats import StatsResponse
 from app.crud.stats import crud_stats
+from app.crud.order import crud_order
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

@@ -5,6 +5,7 @@ import OrdersTab from '@/components/admin/OrdersTab'
 import TracksTab from '@/components/admin/TracksTab'
 import ExamplesTab from '@/components/admin/ExamplesTab'
 import StatsTab from '@/components/admin/StatsTab'
+import TariffsTab from '@/components/admin/TariffsTab'
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('orders')
@@ -19,6 +20,7 @@ const AdminPage = () => {
               { id: 'orders', name: 'Заказы' },
               { id: 'tracks', name: 'Треки' },
               { id: 'examples', name: 'Примеры' },
+              { id: 'tariffs', name: 'Тарифы' },
               { id: 'stats', name: 'Статистика' }
             ].map((tab) => (
               <button
@@ -41,6 +43,7 @@ const AdminPage = () => {
           {activeTab === 'orders' && <OrdersTab />}
           {activeTab === 'tracks' && <TracksTab />}
           {activeTab === 'examples' && <ExamplesTab />}
+          {activeTab === 'tariffs' && <TariffsTab />}
           {activeTab === 'stats' && <StatsTab />}
         </div>
       </div>
