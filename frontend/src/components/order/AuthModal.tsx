@@ -12,12 +12,6 @@ const AuthModal = ({ isOpen, onClose, onSuccess, onGuestMode }: AuthModalProps) 
 
   if (!isOpen) return null
 
-  const handleGuestContinue = () => {
-    console.log('🎯 Guest mode button clicked')
-    onGuestMode() // Это устанавливает isGuestMode = true
-    onClose()
-    // НЕ вызываем onSuccess() - это только для успешной авторизации
-  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -68,19 +62,6 @@ const AuthModal = ({ isOpen, onClose, onSuccess, onGuestMode }: AuthModalProps) 
               </svg>
               Продолжить с ВКонтакте
             </button>
-          </div>
-
-          {/* Гостевое продолжение */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <button
-              onClick={handleGuestContinue}
-              className="w-full text-center text-blue-600 hover:text-blue-700 font-semibold py-3"
-            >
-              Продолжить как гость ›
-            </button>
-            <p className="text-xs text-gray-500 text-center mt-2">
-              Вы сможете создать аккаунт позже
-            </p>
           </div>
         </div>
       </div>

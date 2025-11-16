@@ -10,7 +10,6 @@ from sqlalchemy.orm import relationship
 from enum import Enum
 from datetime import datetime, timedelta
 from app.models.tariff_plan import TariffPlan
-from app.core.tariffs import get_tariff_deadline_days
 
 from app.core.database import Base
 

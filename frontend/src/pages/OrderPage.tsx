@@ -6,7 +6,8 @@ import { getGenres } from '@/api/genres'
 import { createOrder } from '@/api/orders'
 import { Theme } from '@/types/theme'
 import { Genre } from '@/types/genre'
-import { TARIFF_PLANS, getTariffById, type TariffPlan } from '@/constants/tariffs'
+import { useTariffs } from '@/hooks/useTariffs' // ← ДОБАВЛЯЕМ ХУК
+import { TariffPlan } from '@/types/tariff' // ← ОБНОВЛЯЕМ ИМПОРТ
 import OrderForm from '@/components/order/OrderForm'
 import Questionnaire from '@/components/order/Questionnaire'
 import ContactForm from '@/components/order/ContactForm'
@@ -22,13 +23,23 @@ const OrderPage = () => {
   
   const [themes, setThemes] = useState<Theme[]>([])
   const [genres, setGenres] = useState<Genre[]>([])
+  const { tariffs, loading: tariffsLoading } = useTariffs() // ← ДОБАВЛЯЕМ ХУК
   const [currentStep, setCurrentStep] = useState<OrderStep>('tariff')
-  const [selectedTariff, setSelectedTariff] = useState<TariffPlan>(
-    () => getTariffById(searchParams.get('tariff') || 'basic')
-  )
+  const [selectedTariff, setSelectedTariff] = useState<TariffPlan | null>(null)
   const [orderData, setOrderData] = useState<any>({})
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isGuestMode, setIsGuestMode] = useState(false)
+
+  // Инициализируем выбранный тариф
+  useEffect(() => {
+    if (tariffs.length > 0) {
+      const tariffFromUrl = searchParams.get('tariff')
+      const initialTariff = tariffFromUrl 
+        ? tariffs.find(t => t.code === tariffFromUrl) || tariffs[0]
+        : tariffs[0]
+      setSelectedTariff(initialTariff)
+    }
+  }, [tariffs, searchParams])
 
   // Загружаем темы и жанры при монтировании
   useEffect(() => {
@@ -64,7 +75,7 @@ const OrderPage = () => {
   const handleFormSubmit = (formData: any) => {
     setOrderData({ ...orderData, ...formData })
     
-    if (selectedTariff.hasQuestionnaire) {
+    if (selectedTariff?.has_questionnaire) {
       setCurrentStep('questionnaire')
     } else {
       setCurrentStep('confirmation')
@@ -74,7 +85,7 @@ const OrderPage = () => {
   const handleQuestionnaireSubmit = (questionnaireData: any) => {
     setOrderData({ ...orderData, questionnaire: questionnaireData })
     
-    if (selectedTariff.hasInterview) {
+    if (selectedTariff?.has_interview) {
       setCurrentStep('contact')
     } else {
       setCurrentStep('confirmation')
@@ -90,7 +101,7 @@ const OrderPage = () => {
     // Сохраняем данные в localStorage
     localStorage.setItem('pendingOrder', JSON.stringify({
       orderData,
-      tariff: selectedTariff.id,
+      tariff: selectedTariff?.code,
       timestamp: Date.now()
     }))
     setShowAuthModal(true)
@@ -102,6 +113,8 @@ const OrderPage = () => {
   }
 
   const handleGuestOrderCreation = async () => {
+    if (!selectedTariff) return
+  
     try {
       const orderPayload = {
         theme_id: orderData.theme_id,
@@ -110,12 +123,12 @@ const OrderPage = () => {
         occasion: orderData.occasion,
         details: orderData.details,
         preferences: {
-          tariff: selectedTariff.id,
-          ...(selectedTariff.hasQuestionnaire && { questionnaire: orderData.questionnaire }),
-          ...(selectedTariff.hasInterview && { contact: orderData.contact })
+          tariff: selectedTariff.code, // ← УБЕДИТЕСЬ что передается code, а не id
+          ...(selectedTariff.has_questionnaire && { questionnaire: orderData.questionnaire }),
+          ...(selectedTariff.has_interview && { contact: orderData.contact })
         }
       }
-
+  
       await createOrder(orderPayload)
       console.log('Гостевой заказ:', orderPayload)
       // Переходим на страницу успеха
@@ -138,11 +151,11 @@ const OrderPage = () => {
       { step: 'confirmation', label: 'Подтверждение' }
     ]
     
-    if (selectedTariff.hasQuestionnaire) {
+    if (selectedTariff?.has_questionnaire) {
       baseSteps.splice(2, 0, { step: 'questionnaire', label: 'Анкета' })
     }
     
-    if (selectedTariff.hasInterview) {
+    if (selectedTariff?.has_interview) {
       baseSteps.splice(baseSteps.length - 1, 0, { step: 'contact', label: 'Контакты' })
     }
     
@@ -150,11 +163,21 @@ const OrderPage = () => {
   }
 
   const renderStep = () => {
+    if (tariffsLoading || !selectedTariff) {
+      return (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Загрузка тарифов...</p>
+        </div>
+      )
+    }
+  
     switch (currentStep) {
       case 'tariff':
         return (
           <TariffSelection 
             selectedTariff={selectedTariff}
+            tariffs={tariffs}
             onTariffSelect={handleTariffSelect}
           />
         )
@@ -194,6 +217,8 @@ const OrderPage = () => {
             isGuestMode={isGuestMode}
           />
         )
+      default:
+        return null
     }
   }
 
@@ -255,8 +280,9 @@ const OrderPage = () => {
 }
 
 // Компонент выбора тарифа
-const TariffSelection = ({ selectedTariff, onTariffSelect }: {
+const TariffSelection = ({ selectedTariff, tariffs, onTariffSelect }: {
   selectedTariff: TariffPlan
+  tariffs: TariffPlan[]
   onTariffSelect: (tariff: TariffPlan) => void
 }) => {
   return (
@@ -271,7 +297,7 @@ const TariffSelection = ({ selectedTariff, onTariffSelect }: {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {TARIFF_PLANS.map((tariff) => (
+        {tariffs.map((tariff) => (
           <div
             key={tariff.id}
             className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-200 hover:shadow-xl ${
@@ -304,9 +330,11 @@ const TariffSelection = ({ selectedTariff, onTariffSelect }: {
                 <div className="text-2xl font-bold text-gray-900">
                   {formatPrice(tariff.price)}
                 </div>
-                <div className="text-sm text-gray-500 line-through">
-                  {formatPrice(tariff.originalPrice)}
-                </div>
+                {tariff.original_price && (
+                  <div className="text-sm text-gray-500 line-through">
+                    {formatPrice(tariff.original_price)}
+                  </div>
+                )}
               </div>
 
               <ul className="space-y-2 mb-6">

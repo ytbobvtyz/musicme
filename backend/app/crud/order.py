@@ -8,10 +8,11 @@ from sqlalchemy import and_, or_
 from uuid import UUID
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
-from fastapi import HTTPException, status
-from app.models.order import Order as OrderModel, OrderStatus, TariffPlan
+
+from app.models.order import Order as OrderModel, OrderStatus
 from app.schemas.order import OrderCreate, OrderUpdate
-from app.core.tariffs import get_tariff_config, get_tariff_price, get_tariff_rounds
+from app.crud.tariff import crud_tariff
+from app.models.tariff_plan import TariffPlan
 
 class CRUDOrder:
     async def create(
@@ -26,41 +27,40 @@ class CRUDOrder:
             
             print(f"📦 Order dict received: {order_dict}")
             
-            from datetime import datetime, timezone, timedelta
-            from app.core.tariffs import get_tariff_config
-            
-            # ⬇️ ИСПРАВЛЯЕМ ПРИОРИТЕТ: preferences.tariff важнее чем tariff_plan
+            # ⬇️ ЗАМЕНЯЕМ старые импорты на работу с БД
             tariff_plan = None
             
-            # 1. Сначала проверяем preferences.tariff (основной источник)
+            # 1. Сначала проверяем preferences.tariff
             if order_dict.get('preferences') and order_dict['preferences'].get('tariff'):
                 tariff_plan = order_dict['preferences']['tariff']
-                print(f"🎯 Using tariff from preferences: {tariff_plan}")
             
             # 2. Если нет в preferences, проверяем корень
             if not tariff_plan and order_dict.get('tariff_plan'):
                 tariff_plan = order_dict['tariff_plan']
-                print(f"🎯 Using tariff from root: {tariff_plan}")
             
             # 3. Если все еще нет - используем basic
             tariff_plan = tariff_plan or 'basic'
             print(f"🎯 Final tariff decision: {tariff_plan}")
             
-            # ⬇️ ОБНОВЛЯЕМ tariff_plan в корне для consistency
-            order_dict['tariff_plan'] = tariff_plan
+            # Получаем тариф из БД
+            tariff = await crud_tariff.get_by_code(db, tariff_plan)
+            if not tariff:
+                from fastapi import HTTPException, status
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Тариф '{tariff_plan}' не найден"
+                )
             
-            tariff_config = get_tariff_config(tariff_plan)
-            
-            # Автоматически устанавливаем цену и правки из конфига
-            order_dict['price'] = tariff_config['price']
-            order_dict['rounds_remaining'] = tariff_config['rounds']
+            # Автоматически устанавливаем цену и правки из тарифа
+            order_dict['price'] = tariff.price
+            order_dict['rounds_remaining'] = tariff.rounds
             
             # Вычисляем дедлайн
-            deadline_days = tariff_config['deadline_days']
+            deadline_days = tariff.deadline_days
             order_dict['deadline_at'] = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=deadline_days)
             
             # Валидация для продвинутых тарифов
-            if tariff_config['has_questionnaire']:
+            if tariff.has_questionnaire:
                 if not order_dict.get('preferences') or not order_dict['preferences'].get('questionnaire'):
                     from fastapi import HTTPException, status
                     raise HTTPException(
@@ -72,7 +72,7 @@ class CRUDOrder:
             order_dict['user_id'] = user_id
                 
             print(f"🎯 Final order data: {order_dict}")
-            print(f"💰 Tariff: {tariff_plan}, Price: {tariff_config['price']}, Rounds: {tariff_config['rounds']}, Deadline: {deadline_days} days")
+            print(f"💰 Tariff: {tariff_plan}, Price: {tariff.price}, Rounds: {tariff.rounds}, Deadline: {deadline_days} days")
                 
             order = OrderModel(**order_dict)
             db.add(order)

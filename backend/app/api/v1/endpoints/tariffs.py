@@ -1,49 +1,60 @@
-"""
-Эндпоинты для работы с тарифными планами
-"""
-from fastapi import APIRouter, Depends
-from app.schemas.tariff import TariffListResponse, TariffPlanSchema
-from app.core.tariffs import TARIFF_CONFIG
-from app.models.order import TariffPlan
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+import traceback
+
+from app.core.database import get_db
+from app.schemas.tariff import Tariff, TariffListResponse
+from app.crud.tariff import crud_tariff
 
 router = APIRouter()
 
 @router.get("", response_model=TariffListResponse)
-async def get_tariffs():
+async def get_tariffs(db: AsyncSession = Depends(get_db)):
     """
-    Получить список всех тарифных планов
+    Получить список активных тарифных планов
     """
-    tariffs = []
-    
-    for tariff_id, config in TARIFF_CONFIG.items():
-        tariff_schema = TariffPlanSchema(
-            id=tariff_id,
-            name=config["name"],
-            description=config["description"],
-            price=config["price"],
-            original_price=config.get("original_price"),
-            deadline_days=config["deadline_days"],
-            rounds=config["rounds"],
-            has_questionnaire=config["has_questionnaire"],
-            has_interview=config["has_interview"],
-            features=config["features"],
-            badge=config.get("badge"),
-            popular=config.get("popular", False)
+    try:
+        print("🔍 tariffs endpoint called")  # ← ДЛЯ ОТЛАДКИ
+        
+        tariffs = await crud_tariff.get_active(db)
+        print(f"🔍 Found {len(tariffs)} tariffs")  # ← ДЛЯ ОТЛАДКИ
+        
+        # Проверим структуру данных
+        for tariff in tariffs:
+            print(f"🔍 Tariff: {tariff.code}, features: {tariff.features}")
+        
+        return TariffListResponse(tariffs=tariffs)
+    except Exception as e:
+        print(f"❌ Error in tariffs endpoint: {e}")  # ← ДЛЯ ОТЛАДКИ
+        print(f"❌ Traceback: {traceback.format_exc()}")  # ← ДЛЯ ОТЛАДКИ
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при получении тарифов: {str(e)}"
         )
-        tariffs.append(tariff_schema)
-    
-    return TariffListResponse(tariffs=tariffs)
 
-@router.get("/{tariff_id}")
-async def get_tariff(tariff_id: TariffPlan):
+@router.get("/{tariff_id}", response_model=Tariff)
+async def get_tariff(tariff_id: UUID, db: AsyncSession = Depends(get_db)):
     """
-    Получить информацию о конкретном тарифе
+    Получить тариф по ID
     """
-    config = TARIFF_CONFIG.get(tariff_id)
-    if not config:
-        return {"error": "Тариф не найден"}
-    
-    return TariffPlanSchema(
-        id=tariff_id,
-        **config
-    )
+    tariff = await crud_tariff.get(db, tariff_id)
+    if not tariff:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Тариф не найден"
+        )
+    return tariff
+
+@router.get("/code/{tariff_code}", response_model=Tariff)
+async def get_tariff_by_code(tariff_code: str, db: AsyncSession = Depends(get_db)):
+    """
+    Получить тариф по коду
+    """
+    tariff = await crud_tariff.get_by_code(db, tariff_code)
+    if not tariff:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Тариф не найден"
+        )
+    return tariff

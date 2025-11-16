@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
 import AuthBlock from '@/components/AuthBlock'
 import { useExampleTracks } from '@/hooks/useExampleTracks'
-import { useState } from 'react'
-import { ExampleTrack } from '@/types/exampleTrack'
+import { useTariffs } from '@/hooks/useTariffs'
 import ThemeSquareBlock from '@/components/ThemeSquareBlock'
-import { TARIFF_PLANS, formatPrice } from '@/constants/tariffs'
+import { formatPrice } from '@/utils/format'
 
 const HomePage = () => {
-  const { tracksByTheme, loading } = useExampleTracks()
+  const { tracksByTheme, loading: tracksLoading } = useExampleTracks()
+  const { tariffs, loading: tariffsLoading, error } = useTariffs()
   
   // Топовые темы для главной страницы
   const topThemes = [
@@ -16,12 +16,62 @@ const HomePage = () => {
     'новый год'
   ]
 
-  // Тарифные планы
-  const tariffPlans = TARIFF_PLANS.map(tariff => ({
+  // Форматируем цены для отображения - используем правильные поля
+  const tariffPlans = tariffs.map(tariff => ({
     ...tariff,
-    price: formatPrice(tariff.price),
-    originalPrice: formatPrice(tariff.originalPrice)
+    priceDisplay: formatPrice(tariff.price),
+    originalPriceDisplay: tariff.original_price ? formatPrice(tariff.original_price) : undefined
   }))
+
+  // Если загрузка тарифов
+  if (tariffsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Загрузка тарифов...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Если ошибка загрузки тарифов
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">⚠️</div>
+          <p className="text-gray-600">Ошибка загрузки тарифов</p>
+          <p className="text-sm text-gray-500 mt-2">{error}</p>
+          <Link
+            to="/order"
+            className="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Перейти к заказу
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Если нет тарифов
+  if (tariffs.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-yellow-500 text-xl mb-4">📋</div>
+          <p className="text-gray-600">Тарифы временно недоступны</p>
+          <p className="text-sm text-gray-500 mt-2">Мы уже работаем над решением</p>
+          <Link
+            to="/order"
+            className="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Сделать заказ
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white">
@@ -30,12 +80,11 @@ const HomePage = () => {
         <AuthBlock />
       </div>
       
-      {/* Hero Section - Updated Branding */}
+      {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 pb-32">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50"></div>
         
         <div className="relative z-10 max-w-6xl mx-auto px-6 text-center animate-fade-in">
-          {/* Updated Logo/Brand */}
           <div className="mb-8">
             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-4 tracking-tight">
               musicme
@@ -73,14 +122,12 @@ const HomePage = () => {
             </Link>
           </div>
 
-          
-          {/* Updated decorative elements */}
           <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-200/30 rounded-full blur-3xl -z-10"></div>
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-200/20 rounded-full blur-3xl -z-10"></div>
         </div>
       </section>
 
-      {/* Dynamic Examples Section - Updated */}
+      {/* Dynamic Examples Section */}
       <section id="examples" className="py-32 bg-gray-50/50">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -92,7 +139,7 @@ const HomePage = () => {
             </p>
           </div>
 
-          {loading ? (
+          {tracksLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Загрузка примеров...</p>
@@ -127,7 +174,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Tariffs Section - New */}
+      {/* Tariffs Section - ОБНОВЛЕННАЯ */}
       <section id="tariffs" className="py-32 bg-gray-50/50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -151,7 +198,7 @@ const HomePage = () => {
                 {tariff.popular && (
                   <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                     <div className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
-                      {tariff.badge}
+                      {tariff.badge || 'Популярный'}
                     </div>
                   </div>
                 )}
@@ -175,16 +222,18 @@ const HomePage = () => {
                   <div className="mb-6">
                     <div className="flex items-baseline gap-2">
                       <span className="text-3xl font-bold text-gray-900">
-                        {tariff.price}
+                        {tariff.priceDisplay}
                       </span>
-                      <span className="text-lg text-gray-500 line-through">
-                        {tariff.originalPrice}
-                      </span>
+                      {tariff.originalPriceDisplay && (
+                        <span className="text-lg text-gray-500 line-through">
+                          {tariff.originalPriceDisplay}
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   <ul className="space-y-3 mb-8">
-                    {tariff.features.map((feature, featureIndex) => (
+                    {tariff.features.map((feature: string, featureIndex: number) => (
                       <li key={featureIndex} className="flex items-start gap-3">
                         <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -195,7 +244,7 @@ const HomePage = () => {
                   </ul>
 
                   <Link
-                    to={`/order?tariff=${tariff.id}`}
+                    to={`/order?tariff=${tariff.code}`}
                     className={`w-full block text-center py-3 px-6 rounded-xl font-semibold transition-all duration-200 ${
                       tariff.popular
                         ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
@@ -211,13 +260,14 @@ const HomePage = () => {
 
           <div className="text-center mt-12">
             <p className="text-gray-600">
-              💰 Для всех тарифов действует правило: платите только если результат вам понравится!
+              Для всех тарифов действует правило: платите только если результат вам понравится!
             </p>
           </div>
         </div>
       </section>
 
-      {/* Features Section - Updated */}
+
+      {/* Features Section */}
       <section className="py-32 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-headline font-bold text-center mb-4 text-gray-900">
@@ -268,7 +318,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* CTA Section - Updated */}
+      {/* CTA Section */}
       <section className="py-32 bg-gradient-to-br from-blue-600 to-purple-600 relative overflow-hidden">
         <div 
           className="absolute inset-0 opacity-20"

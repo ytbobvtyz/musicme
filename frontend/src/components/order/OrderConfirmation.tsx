@@ -1,4 +1,5 @@
-import { TariffPlan, formatPrice } from '@/constants/tariffs'
+import { TariffPlan } from '@/types/tariff'
+import { formatPrice } from '@/utils/format'
 import { createOrder } from '@/api/orders'
 import { useAuthStore } from '@/store/authStore'
 import { useState } from 'react'
@@ -35,9 +36,9 @@ const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: Or
         occasion: orderData.occasion,
         details: orderData.details,
         preferences: {
-          tariff: tariff.id,
-          ...(tariff.hasQuestionnaire && { questionnaire: orderData.questionnaire }),
-          ...(tariff.hasInterview && { contact: orderData.contact })
+          tariff: tariff.code, // ← ИСПРАВЛЯЕМ на code вместо id
+          ...(tariff.has_questionnaire && { questionnaire: orderData.questionnaire }), // ← ИСПРАВЛЯЕМ поле
+          ...(tariff.has_interview && { contact: orderData.contact }) // ← ИСПРАВЛЯЕМ поле
         }
       }
   
@@ -90,7 +91,7 @@ const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: Or
               </div>
               <div>
                 <dt className="text-sm text-gray-500">Срок выполнения</dt>
-                <dd className="font-medium">{tariff.deadlineHours} часов</dd>
+                <dd className="font-medium">{tariff.deadline_days} дней</dd>
               </div>
             </dl>
           </div>
@@ -119,7 +120,7 @@ const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: Or
           </div>
         )}
 
-        {tariff.hasQuestionnaire && orderData.questionnaire && (
+        {tariff.has_questionnaire && orderData.questionnaire && (
           <div className="mt-6 pt-6 border-t border-gray-200">
             <h4 className="text-sm font-semibold text-gray-900 mb-2">Ответы из анкеты</h4>
             <div className="space-y-2 text-sm text-gray-700">
@@ -132,7 +133,7 @@ const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: Or
           </div>
         )}
 
-        {tariff.hasInterview && orderData.contact && (
+        {tariff.has_interview && orderData.contact && (
           <div className="mt-6 pt-6 border-t border-gray-200">
             <h4 className="text-sm font-semibold text-gray-900 mb-2">Контактные данные</h4>
             <dl className="space-y-2 text-sm text-gray-700">

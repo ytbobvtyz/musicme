@@ -51,8 +51,7 @@ services:
       dockerfile: Dockerfile.frontend
     ports:
       - "3000:3000"
-    environment:
-      - VITE_API_URL=http://localhost:8000/api/v1
+    # ⬇️ УБИРАЕМ VITE_API_URL - она не нужна с прокси
     volumes:
       - ./frontend:/app
       - /app/node_modules

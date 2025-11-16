@@ -20,6 +20,14 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
+    // ⬇️ ПРОКСИ НА БЭКЕНД ЧЕРЕЗ DOCKER NETWORK
+    proxy: {
+      '/api': {
+        target: 'http://backend:8000', // ← имя сервиса из docker-compose
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
 })
 

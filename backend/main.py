@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Mysong-Podarok.ru API",
+    title="musicme.ru API",
     description="API для сервиса создания персонализированных музыкальных треков",
     version="1.0.0",
     lifespan=lifespan,

@@ -11,7 +11,8 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.schemas.order import Order, OrderCreate, OrderDetail, OrderUpdate
 from app.schemas.user import User as UserSchema
-from app.models.order import TariffPlan, OrderStatus
+from app.models.order import OrderStatus
+from app.models.tariff_plan import TariffPlan
 from app.services.order_service import order_service
 
 router = APIRouter()
@@ -24,19 +25,21 @@ async def create_order(
     current_user: UserSchema = Depends(get_current_user)
 ):
     """
-    Создать новый заказ (только для авторизованных пользователей)
+    Создать новый заказ
     """
     try:
         logger.info(f"Создание заказа для пользователя {current_user.id}")
-        print(f"🔍 DEBUG OrderCreate data: {order_data.dict()}")  # ← ДОБАВИТЬ
-        print(f"🔍 DEBUG Tariff from request: {order_data.tariff_plan}")  # ← ДОБАВИ
-        # Валидация бизнес-логики
-        order_service.validate_order_data(order_data)
+        print(f"🔍 DEBUG OrderCreate data: {order_data.dict()}")
+        print(f"🔍 DEBUG Tariff from request: {order_data.tariff_plan}")
         
-        # Подготовка данных - ПЕРЕДАЕМ user_id
-        order_dict = order_service.prepare_order_data(
+        # Валидация бизнес-логики - ПЕРЕДАЕМ db
+        await order_service.validate_order_data(order_data, db)
+        
+        # Подготовка данных - ПЕРЕДАЕМ db
+        order_dict = await order_service.prepare_order_data(
             order_data, 
-            user_id=current_user.id  # ← ДОБАВИТЬ ЭТОТ АРГУМЕНТ
+            user_id=current_user.id,
+            db=db  # ← ДОБАВЛЯЕМ db
         )
         
         print(f"🔍 DEBUG: Prepared order dict: {order_dict}")
@@ -57,7 +60,7 @@ async def create_order(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при создании заказа: {str(e)}"
         )
-
+        
 @router.get("", response_model=List[Order])
 async def get_orders(
     db = Depends(get_db),

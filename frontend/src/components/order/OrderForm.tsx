@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { Theme } from '@/types/theme'
 import { Genre } from '@/types/genre'
-import { TariffPlan } from '@/constants/tariffs'
+import { TariffPlan } from '@/types/tariff'
 
 interface OrderFormProps {
   tariff: TariffPlan
-  themes: Theme[]
-  genres: Genre[]
-  onSubmit: (data: any) => void
+  onSubmit: (formData: any) => void
   onBack: () => void
+  themes: any[]
+  genres: any[]
   initialData?: any
 }
 
-const OrderForm = ({ tariff, themes, genres, onSubmit, onBack, initialData }: OrderFormProps) => {
+const OrderForm = ({ tariff, onSubmit, onBack, themes, genres, initialData }: OrderFormProps) => {
   const [formData, setFormData] = useState({
     theme_id: initialData?.theme_id || '',
     genre_id: initialData?.genre_id || '',
@@ -135,7 +135,7 @@ const OrderForm = ({ tariff, themes, genres, onSubmit, onBack, initialData }: Or
               type="submit"
               className="flex-1 py-3 px-6 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
             >
-              {tariff.hasQuestionnaire ? 'Далее →' : 'Создать заказ'}
+              {tariff.has_questionnaire ? 'Далее →' : 'Создать заказ'}
             </button>
           </div>
         </form>

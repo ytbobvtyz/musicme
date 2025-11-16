@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TariffPlan } from '@/constants/tariffs'
+import { TariffPlan } from '@/types/tariff'
 
 interface ContactFormProps {
   tariff: TariffPlan
