@@ -30,12 +30,6 @@ const AuthModal = ({ isOpen, onClose, onSuccess, onGuestMode }: AuthModalProps) 
 
         {/* Контент */}
         <div className="p-6">
-          {/* Сообщение о преимуществах */}
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-800 text-center">
-              ✅ Ваш заказ сохранен и будет автоматически создан после авторизации
-            </p>
-          </div>
 
           {/* Блок OAuth */}
           <div className="space-y-4">

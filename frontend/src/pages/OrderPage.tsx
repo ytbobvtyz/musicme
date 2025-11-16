@@ -98,12 +98,22 @@ const OrderPage = () => {
   }
 
   const handleRequireAuth = () => {
-    // Сохраняем данные в localStorage
-    localStorage.setItem('pendingOrder', JSON.stringify({
-      orderData,
-      tariff: selectedTariff?.code,
-      timestamp: Date.now()
-    }))
+    // СОЗДАЕМ ПРАВИЛЬНУЮ СТРУКТУРУ ДАННЫХ
+    const orderPayload = {
+      theme_id: orderData.theme_id,
+      genre_id: orderData.genre_id,
+      recipient_name: orderData.recipient_name,
+      occasion: orderData.occasion,
+      details: orderData.details,
+      tariff_plan: selectedTariff?.code || 'basic', // ← на верхнем уровне!
+      preferences: {
+        ...(selectedTariff?.has_questionnaire && { questionnaire: orderData.questionnaire }),
+        ...(selectedTariff?.has_interview && { contact: orderData.contact })
+      }
+    }
+    
+    console.log('🔍 Saving pending order to localStorage:', orderPayload)
+    localStorage.setItem('pendingOrder', JSON.stringify(orderPayload))
     setShowAuthModal(true)
   }
 
@@ -116,22 +126,23 @@ const OrderPage = () => {
     if (!selectedTariff) return
   
     try {
+      // ИСПОЛЬЗУЕМ ТУ ЖЕ СТРУКТУРУ
       const orderPayload = {
         theme_id: orderData.theme_id,
         genre_id: orderData.genre_id,
         recipient_name: orderData.recipient_name,
         occasion: orderData.occasion,
         details: orderData.details,
+        tariff_plan: selectedTariff.code, // ← на верхнем уровне!
         preferences: {
-          tariff: selectedTariff.code, // ← УБЕДИТЕСЬ что передается code, а не id
           ...(selectedTariff.has_questionnaire && { questionnaire: orderData.questionnaire }),
           ...(selectedTariff.has_interview && { contact: orderData.contact })
         }
       }
   
+      console.log('🔍 Creating guest order:', orderPayload)
       await createOrder(orderPayload)
-      console.log('Гостевой заказ:', orderPayload)
-      // Переходим на страницу успеха
+      
       navigate('/order/success', { 
         state: { 
           guestOrder: true,

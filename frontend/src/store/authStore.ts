@@ -59,6 +59,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   
   logout: () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('pendingOrder') // ← добавляем очистку заказа
     set({ user: null, token: null, isAuthenticated: false })
   },
 }))

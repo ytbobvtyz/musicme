@@ -19,14 +19,30 @@ const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: Or
 
   const handleCreateOrder = async () => {
     if (!isAuthenticated && !isGuestMode) {
+      // ИСПОЛЬЗУЕМ ТУ ЖЕ СТРУКТУРУ
+      const orderPayload = {
+        theme_id: orderData.theme_id,
+        genre_id: orderData.genre_id,
+        recipient_name: orderData.recipient_name,
+        occasion: orderData.occasion,
+        details: orderData.details,
+        tariff_plan: tariff.code, // ← на верхнем уровне!
+        preferences: {
+          ...(tariff.has_questionnaire && { questionnaire: orderData.questionnaire }),
+          ...(tariff.has_interview && { contact: orderData.contact })
+        }
+      }
+      
+      console.log('🔍 Saving to localStorage (OrderConfirmation):', orderPayload)
+      localStorage.setItem('pendingOrder', JSON.stringify(orderPayload))
+      
       if (onRequireAuth) {
         onRequireAuth()
-      } else {
-        alert('Пожалуйста, войдите в систему')
       }
       return
     }
   
+    // Для авторизованных пользователей
     setLoading(true)
     try {
       const orderPayload = {
@@ -35,13 +51,14 @@ const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: Or
         recipient_name: orderData.recipient_name,
         occasion: orderData.occasion,
         details: orderData.details,
+        tariff_plan: tariff.code, // ← на верхнем уровне!
         preferences: {
-          tariff: tariff.code, // ← ИСПРАВЛЯЕМ на code вместо id
-          ...(tariff.has_questionnaire && { questionnaire: orderData.questionnaire }), // ← ИСПРАВЛЯЕМ поле
-          ...(tariff.has_interview && { contact: orderData.contact }) // ← ИСПРАВЛЯЕМ поле
+          ...(tariff.has_questionnaire && { questionnaire: orderData.questionnaire }),
+          ...(tariff.has_interview && { contact: orderData.contact })
         }
       }
   
+      console.log('🔍 Creating order (authenticated):', orderPayload)
       await createOrder(orderPayload)
       
       navigate('/order/success', { 

@@ -10,14 +10,15 @@ export interface Order {
   recipient_name: string
   occasion?: string
   details?: string
+  tariff_plan: string // ← ДОБАВЛЯЕМ в основной интерфейс
   preferences?: Record<string, any>
   status: string
   interview_link?: string
   estimated_time?: string
   created_at: string
   updated_at: string
-  theme?: Theme  // ← объект темы
-  genre?: Genre  // ← объект жанра
+  theme?: Theme
+  genre?: Genre
 }
 
 export interface OrderCreate {
@@ -26,6 +27,7 @@ export interface OrderCreate {
   recipient_name: string
   occasion?: string
   details?: string
+  tariff_plan: string
   preferences?: Record<string, any>
 }
 
@@ -33,17 +35,15 @@ export interface OrderDetail extends Order {
   tracks: Track[]
 }
 
-// ⬇️⬇️⬇️ ДОБАВИМ ВСПОМОГАТЕЛЬНЫЕ ТИПЫ ⬇️⬇️⬇️
-
-// Для отображения в UI - содержит строковые названия
 export interface OrderDisplay {
   id: string
   user_id: string
-  theme: string  // ← название темы как строка
-  genre: string  // ← название жанра как строка
+  theme: string
+  genre: string
   recipient_name: string
   occasion?: string
   details?: string
+  tariff_plan: string // ← ДОБАВЛЯЕМ и здесь
   preferences?: Record<string, any>
   status: string
   interview_link?: string
@@ -55,6 +55,6 @@ export interface OrderDisplay {
 // Функция для преобразования Order в OrderDisplay
 export const orderToDisplay = (order: Order): OrderDisplay => ({
   ...order,
-  theme: order.theme?.name || 'Неизвестно',  // ← берем название из объекта theme
-  genre: order.genre?.name || 'Неизвестно',  // ← берем название из объекта genre
+  theme: order.theme?.name || 'Неизвестно',
+  genre: order.genre?.name || 'Неизвестно',
 })
