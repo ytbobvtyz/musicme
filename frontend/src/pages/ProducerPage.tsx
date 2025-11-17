@@ -19,7 +19,7 @@ const ProducerPage = () => {
   const loadOrders = async () => {
     try {
       const ordersData = await getProducerOrders(activeTab)
-      setOrders(ordersData.orders || ordersData)
+      setOrders(ordersData)
     } catch (error) {
       console.error('Error loading producer orders:', error)
     } finally {

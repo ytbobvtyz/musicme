@@ -108,6 +108,28 @@ class CRUDOrder:
         )
         return result.scalars().all()
 
+    async def get_by_producer(
+        self, 
+        db: AsyncSession, 
+        producer_id: UUID, 
+        status: Optional[str] = None
+    ) -> List[OrderModel]:
+        """Получить заказы по продюсеру"""
+        print(f"🔍 CRUD: Getting orders for producer {producer_id}, status: {status}")
+        
+        query = select(OrderModel).where(OrderModel.producer_id == producer_id)
+        
+        if status:
+            query = query.where(OrderModel.status == status)
+        
+        query = query.order_by(OrderModel.created_at.desc())
+         
+        result = await db.execute(query)
+        orders = result.scalars().all()
+        
+        print(f"🔍 CRUD: Found {len(orders)} orders for producer {producer_id}")
+        return orders
+
     async def get_by_id(self, db: AsyncSession, order_id: UUID) -> Optional[OrderModel]:
         """Получить заказ по ID с треками"""
         result = await db.execute(

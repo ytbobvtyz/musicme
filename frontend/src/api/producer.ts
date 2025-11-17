@@ -8,11 +8,18 @@ const getAuthHeaders = () => {
   }
 }
 
-export const getProducerOrders = async (status?: string) => {
-  const response = await fetch(`/api/v1/producer/orders?${new URLSearchParams({ status } as any)}`, {
+export const getProducerOrders = async (orderStatus?: string): Promise<Order[]> => {
+  const params = orderStatus ? `?order_status=${orderStatus}` : ''  // ← меняем параметр
+  const response = await fetch(`/api/v1/producer/orders${params}`, {
     headers: getAuthHeaders()
   })
-  if (!response.ok) throw new Error('Ошибка загрузки заказов')
+  
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('Error fetching producer orders:', errorText)
+    throw new Error(`Ошибка загрузки заказов: ${response.status}`)
+  }
+  
   return response.json()
 }
 

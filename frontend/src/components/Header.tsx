@@ -2,10 +2,12 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useEffect, useState } from 'react'
 import { useAdmin } from '@/hooks/useAdmin'
+import { useProducer } from '@/hooks/useProducer'
 
 const Header = () => {
   const { user, isAuthenticated } = useAuthStore()
-  const { isAdmin, loading } = useAdmin()
+  const { isAdmin, loading: adminLoading } = useAdmin()
+  const { isProducer, loading: producerLoading } = useProducer()
   const location = useLocation()
   const [scrolled, setScrolled] = useState(false)
 
@@ -18,6 +20,7 @@ const Header = () => {
   }, [])
 
   const isHomePage = location.pathname === '/'
+  const isLoading = adminLoading || producerLoading
 
   return (
     <header
@@ -68,8 +71,23 @@ const Header = () => {
                 >
                   Примеры
                 </Link>
+                
+                {/* Вкладка Продюсирование - только для продюсеров */}
+                {!isLoading && isProducer && (
+                  <Link
+                    to="/producer"
+                    className={`text-sm md:text-base font-medium transition-colors duration-200 hover:text-primary-600 ${
+                      scrolled || !isHomePage ? 'text-gray-700' : 'text-gray-700'
+                    } ${
+                      location.pathname === '/producer' ? 'text-primary-600 font-semibold' : ''
+                    }`}
+                  >
+                    Продюсирование
+                  </Link>
+                )}
+                
                 {/* Вкладка Администрирование - только для админов */}
-                {!loading && isAdmin && (
+                {!isLoading && isAdmin && (
                   <Link
                     to="/admin"
                     className={`text-sm md:text-base font-medium transition-colors duration-200 hover:text-primary-600 ${
