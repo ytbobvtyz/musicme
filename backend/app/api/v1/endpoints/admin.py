@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 import os
 from sqlalchemy.orm import selectinload, joinedload
 from datetime import datetime, timezone, timedelta
-
+import traceback
 import logging
 
 from sqlalchemy import and_
@@ -30,6 +30,8 @@ from app.models.example_track import ExampleTrack as ExampleTrackModel
 from app.schemas.stats import StatsResponse
 from app.crud.stats import crud_stats
 from app.crud.order import crud_order
+from app.schemas.user import User as UserSchema
+from app.crud.user import upsert_user_by_email, crud_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -580,4 +582,122 @@ async def get_admin_stats(
         raise HTTPException(
             status_code=500,
             detail=f"Ошибка при генерации статистики: {str(e)}"
+        )
+
+@router.get("/producers")
+async def get_producers(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_admin)
+):
+    """
+    Получить список всех продюсеров
+    """
+    try:
+        print("🔍 Fetching producers...")
+        producers = await crud_user.get_producers(db)  # ← вызываем как метод экземпляра
+        print(f"🔍 Found {len(producers)} producers")
+        
+        return [UserSchema.model_validate(producer) for producer in producers]
+        
+    except Exception as e:
+        print(f"❌ Error fetching producers: {str(e)}")
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при получении продюсеров: {str(e)}"
+        )
+
+@router.post("/orders/{order_id}/assign")
+async def assign_producer(
+    order_id: UUID,
+    assignment_data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_admin)
+):
+    """
+    Назначить продюсера на заказ
+    """
+    try:
+        print(f"🔍 START: Assigning producer to order {order_id}")
+        print(f"🔍 Assignment data: {assignment_data}")
+        print(f"🔍 Current user: {current_user.id} ({current_user.email})")
+        
+        producer_id = assignment_data.get("producer_id")
+        if not producer_id:
+            print("❌ ERROR: producer_id is missing")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="producer_id обязателен"
+            )
+        
+        print(f"🔍 Producer ID from request: {producer_id}")
+        
+        # Получаем заказ
+        order = await crud_order.get(db, order_id)
+        if not order:
+            print(f"❌ ERROR: Order {order_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Заказ не найден"
+            )
+        
+        print(f"🔍 Found order: {order.id}")
+        print(f"🔍 Order current producer: {order.producer_id}")
+        print(f"🔍 Order current status: {order.status}")
+        print(f"🔍 Order tariff: {order.tariff_plan}")
+        
+        # Проверяем что пользователь является продюсером
+        print(f"🔍 Checking if user {producer_id} is producer...")
+        producer = await crud_user.get_by_producer_id(db, UUID(producer_id))
+        
+        if not producer:
+            print(f"❌ ERROR: User {producer_id} is not a producer or not found")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Пользователь не является продюсером"
+            )
+        
+        print(f"🔍 Found producer: {producer.id} - {producer.name} (is_producer: {producer.is_producer})")
+        
+        # Назначаем продюсера
+        print(f"🔍 Assigning producer {producer.id} to order {order.id}")
+        order.producer_id = UUID(producer_id)
+        
+        # Автоматически меняем статус в зависимости от тарифа
+        if order.tariff_plan == "premium":
+            order.status = "waiting_interview"
+            print("🔍 Status changed to: waiting_interview (premium tariff)")
+        else:
+            order.status = "in_progress" 
+            print("🔍 Status changed to: in_progress (basic/advanced tariff)")
+        
+        print("🔍 Committing to database...")
+        await db.commit()
+        await db.refresh(order)
+        
+        print(f"✅ SUCCESS: Producer {producer.name} assigned to order {order.id}")
+        print(f"✅ Order new status: {order.status}")
+        print(f"✅ Order new producer: {order.producer_id}")
+        
+        # ⬇️ ИСПРАВЛЯЕМ ВОЗВРАЩАЕМЫЙ ОТВЕТ
+        # Вместо полной валидации Order возвращаем простой ответ
+        return {
+            "id": str(order.id),
+            "status": order.status,
+            "producer_id": str(order.producer_id),
+            "tariff_plan": order.tariff_plan,
+            "message": "Продюсер успешно назначен"
+        }
+        
+    except HTTPException as he:
+        print(f"❌ HTTPException: {he.detail}")
+        raise he
+    except Exception as e:
+        await db.rollback()
+        print(f"❌ UNEXPECTED ERROR: {str(e)}")
+        print(f"❌ ERROR TYPE: {type(e).__name__}")
+        print(f"❌ TRACEBACK: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при назначении продюсера: {str(e)}"
         )

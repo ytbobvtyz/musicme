@@ -11,6 +11,7 @@ import AdminPage from './pages/AdminPage'
 import OrderSuccessPage from './pages/OrderSuccessPage'
 import { useAuthStore } from './store/authStore'
 import AuthCallbackPage from './pages/AuthCallbackPage'
+import ProducerPage from '@/pages/ProducerPage'
 
 function App() {
   const { setToken } = useAuthStore()
@@ -50,6 +51,7 @@ function App() {
           <Route path="/tracks/:trackId" element={<TrackPage />} />
           <Route path="/examples" element={<ExamplesPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/producer" element={<ProducerPage />} />
           <Route path="/order/success" element={<OrderSuccessPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
         </Routes>

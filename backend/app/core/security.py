@@ -27,14 +27,13 @@ def verify_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(
             token, 
-            settings.JWT_SECRET,  # ← Используем то что есть в config.py
+            settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
     except JWTError:
         return None
 
-# ДОПОЛНИТЕЛЬНО: Можно добавить для удобства
 def create_user_access_token(user_id: str, **extra_data) -> str:
     """
     Создать access token для пользователя
@@ -48,3 +47,18 @@ def create_user_access_token(user_id: str, **extra_data) -> str:
     """
     data = {"sub": user_id, **extra_data}
     return create_access_token(data)
+
+# ⬇️ ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ ДЛЯ СОЗДАНИЯ ТОКЕНА С ПОЛЬЗОВАТЕЛЕМ
+def create_token_from_user(user) -> str:
+    """
+    Создать JWT токен из объекта пользователя
+    """
+    token_data = {
+        "sub": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "is_admin": user.is_admin,
+        "is_producer": user.is_producer,  # ← ВАЖНО: добавляем is_producer
+        "created_at": user.created_at.isoformat() if user.created_at else None
+    }
+    return create_access_token(token_data)

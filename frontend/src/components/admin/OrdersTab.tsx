@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { Order, OrderDisplay } from '@/types/order'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
+import { User } from '@/types/user'
+
+// ⬇️ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДО КОМПОНЕНТА
 
 // Функция преобразования Order в OrderDisplay
 const orderToDisplay = (order: Order): OrderDisplay => ({
   ...order,
   theme: order.theme?.name || 'Неизвестно',
   genre: order.genre?.name || 'Неизвестно',
+  producer: order.producer?.name || 'Не назначен',
 })
 
 // Опции для множественного выбора
@@ -45,7 +49,10 @@ const presetFilters = [
   }
 ]
 
+// ⬇️ КОМПОНЕНТ ДОЛЖЕН БЫТЬ ОБЪЯВЛЕН ПОСЛЕ ВСЕХ ФУНКЦИЙ
+
 const OrdersTab = () => {
+  // ⬇️ ХУКИ ТОЛЬКО ВНУТРИ КОМПОНЕНТА!
   const { token } = useAuthStore()
   const [orders, setOrders] = useState<OrderDisplay[]>([])
   const [allOrders, setAllOrders] = useState<OrderDisplay[]>([])
@@ -53,9 +60,11 @@ const OrdersTab = () => {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [deleting, setDeleting] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [producers, setProducers] = useState<User[]>([]) // ← ПЕРЕМЕЩАЕМ СЮДА!
 
   useEffect(() => {
     fetchOrders()
+    fetchProducers()
   }, [])
 
   // Фильтруем заказы когда меняются выбранные статусы
@@ -88,6 +97,22 @@ const OrdersTab = () => {
       console.error('Error fetching orders:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchProducers = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/admin/producers', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setProducers(data)
+      }
+    } catch (error) {
+      console.error('Error fetching producers:', error)
     }
   }
 
@@ -149,6 +174,46 @@ const OrdersTab = () => {
     }
   }
 
+  const assignProducer = async (orderId: string, producerId: string) => {
+    if (!producerId) {
+      alert('Пожалуйста, выберите продюсера')
+      return
+    }
+  
+    console.log('🔍 Frontend: Assigning producer', { orderId, producerId })
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/v1/admin/orders/${orderId}/assign`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ producer_id: producerId })
+        }
+      )
+  
+      console.log('🔍 Frontend: Response status', response.status)
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('🔍 Frontend: Success response', result)
+        
+        alert(result.message || 'Продюсер успешно назначен')
+        await fetchOrders() // Перезагружаем данные
+      } else {
+        const errorText = await response.text()
+        console.error('🔍 Frontend: Error response', errorText)
+        alert(`Ошибка: ${response.status} - ${errorText}`)
+      }
+    } catch (error) {
+      console.error('🔍 Frontend: Fetch error', error)
+      alert('Ошибка при назначении продюсера')
+    }
+  }
+
   const handleStatusToggle = (status: string) => {
     setSelectedStatuses(prev =>
       prev.includes(status)
@@ -175,7 +240,6 @@ const OrdersTab = () => {
         <h2 className="text-2xl font-bold">Управление заказами</h2>
         
         <div className="flex items-center space-x-4">
-          {/* Кнопка показа/скрытия фильтров */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -272,7 +336,6 @@ const OrdersTab = () => {
             </p>
           </div>
           
-          {/* ТАБЛИЦА ЗАКАЗОВ - ЭТУ ЧАСТЬ Я ПРОПУСТИЛ */}
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -293,6 +356,9 @@ const OrdersTab = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Дата создания
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Продюсер
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Действия
@@ -321,6 +387,21 @@ const OrdersTab = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(order.created_at).toLocaleDateString('ru-RU')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <select
+                      value={order.producer_id || ''}
+                      onChange={(e) => assignProducer(order.id, e.target.value)}
+                      className="text-sm border rounded px-2 py-1"
+                      disabled={order.status !== 'draft'}
+                    >
+                      <option value="">Не назначен</option>
+                      {producers.map(producer => (
+                        <option key={producer.id} value={producer.id}>
+                          {producer.name}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                     <select

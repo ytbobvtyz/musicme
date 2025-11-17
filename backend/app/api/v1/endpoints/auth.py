@@ -11,37 +11,33 @@ from urllib.parse import urlencode
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user as get_current_user_dep
-from app.core.security import create_access_token
+from app.core.security import create_access_token, create_token_from_user  # ← ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ
 from app.schemas.auth import OAuthRequest, AuthResponse
 from app.schemas.user import User as UserSchema
 from app.crud.user import upsert_user_by_email, crud_user
 
 router = APIRouter()
 
-
-
 @router.get("/yandex/login")
 async def yandex_login_redirect():
     """
     Перенаправление на страницу авторизации Яндекс
     """
-    # Проверяем что client_id загружен
     if not settings.YANDEX_CLIENT_ID:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="YANDEX_CLIENT_ID not configured"
         )
-    # Параметры для OAuth запроса к Яндекс
+    
     params = {
         "response_type": "code",
         "client_id": settings.YANDEX_CLIENT_ID,
-        "redirect_uri": "http://localhost:8000/api/v1/auth/yandex/callback",  # Яндекс вернёт сюда
-        "scope": "login:email login:info",  # Запрашиваемые права
+        "redirect_uri": "http://localhost:8000/api/v1/auth/yandex/callback",
+        "scope": "login:email login:info",
     }
     
     auth_url = f"https://oauth.yandex.ru/authorize?{urlencode(params)}"
     return RedirectResponse(url=auth_url)
-
 
 @router.get("/yandex/callback")
 async def yandex_callback(
@@ -65,7 +61,6 @@ async def yandex_callback(
         )
     
     try:
-        # Используем существующую логику
         token_data = await _yandex_exchange_code_for_token(
             code, 
             "http://localhost:8000/api/v1/auth/yandex/callback"
@@ -94,16 +89,8 @@ async def yandex_callback(
         # Создаем/обновляем пользователя
         user = await upsert_user_by_email(db, email=email, name=name, avatar_url=avatar_url)
 
-        # Генерируем JWT с данными пользователя
-        jwt_expires = timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-        token_payload = {
-            "sub": str(user.id),
-            "email": user.email,
-            "name": user.name,
-            "is_admin":user.is_admin,
-            "created_at": user.created_at.isoformat() if user.created_at else None
-        }
-        token = create_access_token(token_payload, expires_delta=jwt_expires)
+        # ⬇️ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ СОЗДАНИЯ ТОКЕНА
+        token = create_token_from_user(user)
 
         # Перенаправляем на фронтенд с токеном
         frontend_url = f"http://localhost:3000/auth/callback?token={token}"
@@ -134,13 +121,10 @@ async def _yandex_exchange_code_for_token(code: str, redirect_uri: str) -> dict:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ошибка обмена кода на токен (Yandex)")
         return r.json()
 
-
 async def _yandex_fetch_user_info(access_token: str) -> dict:
     """
     Получение информации о пользователе Яндекс
     """
-    # Согласно документации Яндекс.Паспорт
-    # https://yandex.ru/dev/id/doc/ru/codes/process-auth#passport
     info_url = "https://login.yandex.ru/info?format=json"
     headers = {"Authorization": f"OAuth {access_token}"}
     async with httpx.AsyncClient(timeout=15) as client:
@@ -148,7 +132,6 @@ async def _yandex_fetch_user_info(access_token: str) -> dict:
         if r.status_code != 200:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ошибка получения профиля (Yandex)")
         return r.json()
-
 
 @router.post("/login/{provider}", response_model=AuthResponse)
 async def oauth_login(
@@ -169,7 +152,6 @@ async def oauth_login(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Не удалось получить access_token (Yandex)")
 
         profile = await _yandex_fetch_user_info(access_token)
-        # Извлекаем данные
         email = profile.get("default_email") or profile.get("emails", [None])[0]
         if not email:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Профиль Yandex не содержит email")
@@ -181,15 +163,13 @@ async def oauth_login(
         # Апсерт пользователя
         user = await upsert_user_by_email(db, email=email, name=name, avatar_url=avatar_url)
 
-        # Генерируем JWT
-        jwt_expires = timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-        token = create_access_token({"sub": str(user.id)}, expires_delta=jwt_expires)
+        # ⬇️ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ СОЗДАНИЯ ТОКЕНА
+        token = create_token_from_user(user)
 
         return AuthResponse(access_token=token, user=UserSchema.model_validate(user))
 
     # Для прочих провайдеров пока не реализовано
     raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Провайдер пока не реализован")
-
 
 @router.get("/me", response_model=UserSchema)
 async def get_current_user(current_user: UserSchema = Depends(get_current_user_dep)):
@@ -208,7 +188,7 @@ async def auth_telegram(
     """
     Авторизация через Telegram Login Widget
     """
-    # TODO: Реализовать проверку hash (важно для безопасности!)
+    # TODO: Реализовать проверку hash
     # Пока пропускаем для тестирования
     
     # Ищем пользователя по telegram_id
@@ -221,11 +201,11 @@ async def auth_telegram(
         # Обновляем данные существующего пользователя
         user = await crud_user.update_telegram_data(db, user.id, telegram_data)
     
-    # Создаем JWT токен
-    access_token = create_access_token({"sub": str(user.id)})
+    # ⬇️ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ СОЗДАНИЯ ТОКЕНА
+    token = create_token_from_user(user)
     
     return AuthResponse(
-        access_token=access_token,
+        access_token=token,
         token_type="bearer",
         user=user
     )

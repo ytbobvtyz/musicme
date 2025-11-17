@@ -15,6 +15,12 @@ from app.crud.tariff import crud_tariff
 from app.models.tariff_plan import TariffPlan
 
 class CRUDOrder:
+    async def get(self, db: AsyncSession, order_id: UUID) -> Optional[OrderModel]:
+        """Получить заказ по ID"""
+        result = await db.execute(
+            select(OrderModel).where(OrderModel.id == order_id)
+        )
+        return result.scalar_one_or_none()
     async def create(
         self, 
         db: AsyncSession, 

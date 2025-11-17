@@ -32,21 +32,20 @@ class Order(Base):
     theme_id = Column(UUID(as_uuid=True), ForeignKey("themes.id"), nullable=False, index=True)
     genre_id = Column(UUID(as_uuid=True), ForeignKey("genres.id"), nullable=False, index=True)
     
-    # ⬇️ НОВЫЕ ПОЛЯ ДЛЯ ТАРИФОВ
+    # ⬇️ ДОБАВЛЯЕМ ПОЛЕ ПРОДЮСЕРА
+    producer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    
     tariff_plan = Column(String, nullable=False, default=TariffPlan.BASIC, index=True)
-
     recipient_name = Column(String, nullable=False)
     occasion = Column(String, nullable=True)
     details = Column(Text, nullable=True)
-    preferences = Column(JSON, nullable=True)  # ← УЖЕ ЕСТЬ в вашей схеме
+    preferences = Column(JSON, nullable=True)
     
-    # ⬇️ ОДНО ПОЛЕ ДЛЯ ДЕДЛАЙНА + ЦЕНА
-    deadline_at = Column(DateTime, nullable=False)    # вычисляемое поле
-    price = Column(Integer, nullable=False)  # цена в рублях
+    deadline_at = Column(DateTime, nullable=False)
+    price = Column(Integer, nullable=False)
     
-    # ⬇️ СТАТУС ЗАМЕНЯЕТ is_paid + поле для правок
     status = Column(String, nullable=False, default=OrderStatus.DRAFT, index=True)
-    rounds_remaining = Column(Integer, default=0, nullable=False)  # оставшиеся правки
+    rounds_remaining = Column(Integer, default=0, nullable=False)
     
     interview_link = Column(String, nullable=True)
     
@@ -54,28 +53,23 @@ class Order(Base):
     updated_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), onupdate=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     
     # Связи
-    user = relationship("User", backref="orders")
+    user = relationship("User", backref="orders", foreign_keys=[user_id])
+    producer = relationship("User", foreign_keys=[producer_id])  # ← ДОБАВЛЯЕМ связь
     theme = relationship("Theme")
     genre = relationship("Genre")
     tracks = relationship("Track", back_populates="order", lazy="selectin", cascade="all, delete-orphan")
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Автоматически вычисляем дедлайн при создании на основе тарифа
         if not self.deadline_at:
             self.deadline_at = self.calculate_deadline()
     
     def calculate_deadline(self):
         """Вычисляем дедлайн на основе тарифа"""
-        # days = get_tariff_deadline_days(self.tariff_plan)
-        days = 1
+        deadline_days = {
+            "basic": 1,
+            "advanced": 2, 
+            "premium": 3
+        }
+        days = deadline_days.get(self.tariff_plan, 1)
         return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=days)
-        
-    # @property
-    # def is_paid(self):
-    #     """Виртуальное свойство для обратной совместимости"""
-    #     return self.status == OrderStatus.PAID
-    
-    def __repr__(self):
-        return f"<Order(id={self.id}, tariff={self.tariff_plan}, status={self.status})>"
-

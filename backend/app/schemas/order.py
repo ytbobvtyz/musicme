@@ -18,6 +18,7 @@ class OrderBase(BaseModel):
     preferences: Optional[Dict[str, Any]] = None
     theme_id: UUID
     genre_id: UUID
+    producer_id: Optional[UUID] = None
     # ⬇️ НОВЫЕ ПОЛЯ ДЛЯ ТАРИФОВ
     tariff_plan: str = Field(default="basic")
     # price: int = Field(..., gt=0)  # цена должна быть > 0
@@ -29,12 +30,14 @@ class OrderCreate(OrderBase):
 class OrderUpdate(BaseModel):
     """Схема для обновления заказа"""
     status: Optional[str] = None
+    producer_id: Optional[UUID] = None
     rounds_remaining: Optional[int] = None
     interview_link: Optional[str] = None
 
 class Order(OrderBase):
     id: UUID
     user_id: UUID
+    producer_id: Optional[UUID] = None
     status: str
     deadline_at: datetime  # ⬅️ ЗАМЕНЯЕМ estimated_time
     rounds_remaining: int = Field(default=0)
@@ -45,6 +48,7 @@ class Order(OrderBase):
     # Связи - делаем опциональными
     theme: Optional[Theme] = None
     genre: Optional[Genre] = None
+    producer: Optional[User] = None
     
     class Config:
         from_attributes = True

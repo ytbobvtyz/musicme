@@ -12,7 +12,9 @@ class UserBase(BaseModel):
     email: EmailStr
     name: Optional[str] = None
     avatar_url: Optional[str] = None
-
+    is_admin: bool = False
+    is_producer: bool = False  # ← ДОБАВЛЯЕМ
+    created_at: datetime
 
 class UserCreate(UserBase):
     """Схема для создания пользователя"""
@@ -22,7 +24,6 @@ class UserCreate(UserBase):
 class User(UserBase):
     """Схема пользователя"""
     id: UUID
-    created_at: datetime
     # ⬇️ НОВОЕ ПОЛЕ ДЛЯ АНАЛИТИКИ
     registration_source: str = Field(default="oauth")
     

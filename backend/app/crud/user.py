@@ -88,23 +88,23 @@ class CRUDUser:
             await db.refresh(user)
         return user
 
-    async def convert_guest_to_user(
-        self, 
-        db: AsyncSession, 
-        guest_email: str, 
-        user_data: dict
-    ) -> Optional[User]:
-        """Конвертировать гостя в полноценного пользователя"""
-        # Создаем нового пользователя
-        user = User(
-            email=user_data['email'],
-            name=user_data.get('name'),
-            registration_source="guest_conversion"
+    # ⬇️ ПЕРЕМЕЩАЕМ МЕТОДЫ ВНУТРЬ КЛАССА
+    async def get_producers(self, db: AsyncSession) -> List[User]:
+        """Получить всех продюсеров"""
+        result = await db.execute(
+            select(User).where(User.is_producer == True)
         )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-        return user
+        return result.scalars().all()
+
+    async def get_by_producer_id(self, db: AsyncSession, producer_id: UUID) -> Optional[User]:
+        """Получить продюсера по ID с проверкой is_producer"""
+        result = await db.execute(
+            select(User).where(
+                User.id == producer_id,
+                User.is_producer == True
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def get_by_registration_source(
         self, 
