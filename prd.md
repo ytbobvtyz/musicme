@@ -269,3 +269,11 @@ Basic: форма → генерация → preview → оплата
 Advanced: форма + анкета → генерация → preview → оплата
 
 Premium: форма + анкета + интервью → генерация → preview → оплата
+
+DRAFT → WAITING_INTERVIEW → IN_PROGRESS → READY_FOR_REVIEW ↔ IN_PROGRESS → READY → COMPLETED
+                             ↑                              ↓
+                             └─── пользователь оставил замечание ───┘
+
+DRAFT → WAITING_INTERVIEW → IN_PROGRESS → READY_FOR_REVIEW ↔ IN_PROGRESS → READY → COMPLETED
+                             ↑                              ↓
+                             └── пользователь запросил правку ─┘

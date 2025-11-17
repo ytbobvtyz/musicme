@@ -32,3 +32,41 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
   if (!response.ok) throw new Error('Ошибка обновления статуса')
   return response.json()
 }
+
+// src/api/producer.ts
+export const uploadTrack = async (formData: FormData) => {
+  const token = localStorage.getItem('token')
+  const response = await fetch('/api/v1/producer/tracks', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  })
+  
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Ошибка загрузки трека: ${response.status}`)
+  }
+  
+  return response.json()
+}
+
+export const updateTrack = async (trackId: string, updateData: any) => {
+  const token = localStorage.getItem('token')
+  const response = await fetch(`/api/v1/producer/tracks/${trackId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(updateData)
+  })
+  
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Ошибка обновления трека: ${response.status}`)
+  }
+  
+  return response.json()
+}

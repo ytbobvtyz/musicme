@@ -9,15 +9,6 @@ from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
-
-class TrackStatus(str, Enum):  # ← Делаем Enum
-    """Статусы трека"""
-    GENERATING = "generating"
-    READY_FOR_REVIEW = "ready_for_review"  # ← preview готов
-    READY = "ready"
-    NEEDS_REVISION = "needs_revision"  # ← требуется правка
-    ERROR = "error"
-
 class Track(Base):
     __tablename__ = "tracks"
     

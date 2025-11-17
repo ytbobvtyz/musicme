@@ -1,48 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
+import { Track } from '@/types/track'
 
-interface Track {
-    id: string
-    order_id: string
-    suno_id: string | null
-    preview_url: string | null
-    full_url: string | null
-    title: string | null
-    status: string
-    created_at: string
-    duration: number | null
-    is_paid: boolean
-    // поля для хранения файлов
-    audio_filename: string | null
-    audio_size: number | null
-    audio_mimetype: string | null
-    
-    order?: {
-      id: string
-      theme?: {  // ← объект темы
-        id: string
-        name: string
-        description?: string
-        is_active: boolean
-        created_at: string
-      }
-      recipient_name: string
-      genre?: {  // ← объект жанра
-        id: string
-        name: string  
-        description?: string
-        is_active: boolean
-        created_at: string
-      }
-      status: string
-      user?: {
-        id: string
-        email: string
-        name: string | null
-        avatar_url: string | null
-      }
-    }
-  }
 
 const TracksTab = () => {
   const { token } = useAuthStore()

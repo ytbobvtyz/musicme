@@ -14,6 +14,7 @@ from app.schemas.order import OrderCreate, OrderUpdate
 from app.crud.tariff import crud_tariff
 from app.models.tariff_plan import TariffPlan
 
+
 class CRUDOrder:
     async def get(self, db: AsyncSession, order_id: UUID) -> Optional[OrderModel]:
         """Получить заказ по ID"""
@@ -21,6 +22,7 @@ class CRUDOrder:
             select(OrderModel).where(OrderModel.id == order_id)
         )
         return result.scalar_one_or_none()
+
     async def create(
         self, 
         db: AsyncSession, 
@@ -208,6 +210,29 @@ class CRUDOrder:
         await db.refresh(order)
         return order
 
+    async def request_revision(
+        self,
+        db: AsyncSession,
+        order_id: UUID
+    ) -> Optional[OrderModel]:
+        """Запросить правку для заказа (уменьшает rounds_remaining)"""
+        order = await self.get_by_id(db, order_id)
+        if not order:
+            return None
+            
+        if order.rounds_remaining > 0:
+            order.rounds_remaining -= 1
+            order.status = OrderStatus.IN_PROGRESS
+            await db.commit()
+            await db.refresh(order)
+            return order
+        else:
+            # Лимит правок исчерпан
+            order.status = OrderStatus.COMPLETED
+            await db.commit()
+            await db.refresh(order)
+            return order
+
     async def get_overdue_orders(self, db: AsyncSession) -> List[OrderModel]:
         """Получить просроченные заказы"""
         result = await db.execute(
@@ -230,5 +255,17 @@ class CRUDOrder:
             )
         )
         return result.scalars().all()
+
+    async def has_preview_tracks(self, db: AsyncSession, order_id: UUID) -> bool:
+        """Проверить, есть ли у заказа preview треки"""
+        from app.crud.track import crud_track
+        preview_tracks = await crud_track.get_by_order(db, order_id, is_preview=True)
+        return len(preview_tracks) > 0
+
+    async def has_final_tracks(self, db: AsyncSession, order_id: UUID) -> bool:
+        """Проверить, есть ли у заказа финальные треки (не preview)"""
+        from app.crud.track import crud_track
+        final_tracks = await crud_track.get_by_order(db, order_id, is_preview=False)
+        return len(final_tracks) > 0
 
 crud_order = CRUDOrder()

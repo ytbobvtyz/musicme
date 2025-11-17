@@ -1,0 +1,400 @@
+// src/pages/ProducerOrderDetailPage.tsx
+import { useEffect, useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/store/authStore'
+import { getOrder } from '@/api/orders'
+import { updateOrderStatus, uploadTrack, updateTrack } from '@/api/producer'
+import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
+import { OrderDetail } from '@/types/order'
+import { Track } from '@/types/track'
+
+const ProducerOrderDetailPage = () => {
+  const { orderId } = useParams<{ orderId: string }>()
+  const { isAuthenticated, user } = useAuthStore()
+  const navigate = useNavigate()
+  const [order, setOrder] = useState<OrderDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [showUploadForm, setShowUploadForm] = useState(false)
+  const [newTrackTitle, setNewTrackTitle] = useState('')
+
+  useEffect(() => {
+    if (isAuthenticated && orderId) {
+      loadOrder()
+    }
+  }, [isAuthenticated, orderId])
+
+  const loadOrder = async () => {
+    try {
+      const data = await getOrder(orderId!)
+      setOrder(data)
+    } catch (error) {
+      console.error('Ошибка при загрузке заказа:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUploadTrack = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!orderId || !newTrackTitle.trim()) return
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      const fileInput = document.getElementById('audioFile') as HTMLInputElement
+      
+      if (!fileInput?.files?.[0]) {
+        alert('Пожалуйста, выберите аудиофайл')
+        return
+      }
+
+      formData.append('audio_file', fileInput.files[0])
+      formData.append('title', newTrackTitle)
+      formData.append('order_id', orderId)
+
+      await uploadTrack(formData)
+      await loadOrder() // Перезагружаем заказ
+      setShowUploadForm(false)
+      setNewTrackTitle('')
+      alert('Трек успешно загружен!')
+    } catch (error) {
+      console.error('Ошибка при загрузке трека:', error)
+      alert('Ошибка при загрузке трека')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleMarkAsReady = async (trackId: string) => {
+    try {
+      await updateTrack(trackId, { status: 'ready' })
+      await updateOrderStatus(orderId!, 'ready_for_review')
+      await loadOrder()
+      alert('Трек помечен как готовый для проверки клиентом')
+    } catch (error) {
+      console.error('Ошибка при обновлении статуса:', error)
+      alert('Ошибка при обновлении статуса')
+    }
+  }
+
+  const getTrackAudioUrl = (track: Track) => {
+    // Используем audio_filename если есть, иначе preview_url
+    if (track.audio_filename) {
+      return `http://localhost:8000/api/v1/tracks/${track.id}/audio`
+    }
+    return track.preview_url || track.full_url || ''
+  }
+
+  const getTrackStatusText = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'generating': 'Генерируется',
+      'ready': 'Готов для проверки',
+      'ready_for_review': 'На проверке у клиента',
+      'revision_requested': 'Требует доработки',
+      'paid': 'Оплачен',
+      'completed': 'Завершен'
+    }
+    return statusMap[status] || status
+  }
+
+  // Проверка доступа к заказу
+  const hasAccessToOrder = () => {
+    if (!order || !user) return false
+    // Админы имеют доступ ко всем заказам
+    if (user.is_admin) return true
+    // Продюсеры имеют доступ только к своим заказам
+    return order.producer_id === user.id
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p className="text-xl text-gray-600">Пожалуйста, войдите в систему</p>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p className="text-xl text-gray-600">Загрузка заказа...</p>
+      </div>
+    )
+  }
+
+  if (!order) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p className="text-xl text-gray-600">Заказ не найден</p>
+        <Link to="/producer" className="text-primary-600 hover:underline mt-4 inline-block">
+          Вернуться к заказам
+        </Link>
+      </div>
+    )
+  }
+
+  // Проверяем доступ
+  if (!hasAccessToOrder()) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <p className="text-xl text-gray-600">У вас нет доступа к этому заказу</p>
+        <Link to="/producer" className="text-primary-600 hover:underline mt-4 inline-block">
+          Вернуться к заказам
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-12 max-w-4xl">
+      {/* Хлебные крошки */}
+      <nav className="mb-8">
+        <Link to="/producer" className="text-primary-600 hover:underline">
+          ← Назад к заказам
+        </Link>
+      </nav>
+
+      {/* Заголовок и статус */}
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">
+            Заказ #{order.id.slice(0, 8)}
+          </h1>
+          <div className={getStatusClasses(order.status)}>
+            {getStatusText(order.status)}
+          </div>
+        </div>
+        
+        {/* Действия для продюсера */}
+        <div className="flex gap-3">
+          {order.status === 'in_progress' && (
+            <button
+              onClick={() => setShowUploadForm(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            >
+              + Загрузить трек
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Основная информация */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Информация о заказе</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm text-gray-500">Для кого</label>
+            <p className="font-medium">{order.recipient_name}</p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-500">Повод</label>
+            <p className="font-medium">{order.occasion || 'Не указано'}</p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-500">Тариф</label>
+            <p className="font-medium capitalize">{order.tariff_plan}</p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-500">Дедлайн</label>
+            <p className="font-medium">
+              {new Date(order.deadline_at).toLocaleDateString('ru-RU')}
+            </p>
+          </div>
+        </div>
+
+        {/* Детали заказа */}
+        {order.details && (
+          <div className="mt-4 pt-4 border-t">
+            <label className="text-sm text-gray-500">Пожелания клиента</label>
+            <p className="mt-1 whitespace-pre-wrap">{order.details}</p>
+          </div>
+        )}
+
+        {/* Анкета для продвинутых тарифов */}
+        {order.preferences?.questionnaire && (
+          <div className="mt-4 pt-4 border-t">
+            <label className="text-sm text-gray-500">Ответы из анкеты</label>
+            <div className="mt-2 space-y-2 text-sm">
+              {Object.entries(order.preferences.questionnaire).map(([key, value]) => (
+                <p key={key}>
+                  <span className="font-medium">{key}:</span> {String(value)}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Форма загрузки трека */}
+      {showUploadForm && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h3 className="text-lg font-semibold mb-4">Загрузка нового трека</h3>
+          <form onSubmit={handleUploadTrack} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Название трека
+              </label>
+              <input
+                type="text"
+                value={newTrackTitle}
+                onChange={(e) => setNewTrackTitle(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                placeholder="Например: Поздравление для Марии"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Аудиофайл
+              </label>
+              <input
+                id="audioFile"
+                type="file"
+                accept="audio/*"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                required
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={uploading}
+                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {uploading ? 'Загрузка...' : 'Загрузить'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUploadForm(false)}
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Секция с треками */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Треки заказа</h2>
+          <span className="text-sm text-gray-500">
+            {order.tracks?.length || 0} треков
+          </span>
+        </div>
+
+        {order.tracks && order.tracks.length > 0 ? (
+          <div className="space-y-4">
+            {order.tracks.map((track) => (
+              <div key={track.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">
+                      {track.title || `Трек ${track.id.slice(0, 8)}`}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Статус: {getTrackStatusText(track.status)}
+                    </p>
+                    {track.created_at && (
+                      <p className="text-sm text-gray-500">
+                        Загружен: {new Date(track.created_at).toLocaleDateString('ru-RU')}
+                      </p>
+                    )}
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    track.status === 'ready' ? 'bg-green-100 text-green-800' :
+                    track.status === 'ready_for_review' ? 'bg-blue-100 text-blue-800' :
+                    track.status === 'revision_requested' ? 'bg-orange-100 text-orange-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {getTrackStatusText(track.status)}
+                  </span>
+                </div>
+
+                {/* Аудиоплеер - показываем если есть аудио */}
+                {(track.audio_filename || track.preview_url) && (
+                  <div className="mt-3">
+                    <audio 
+                      controls 
+                      className="w-full rounded-lg [&::-webkit-media-controls-panel]:bg-gray-100"
+                    >
+                      <source 
+                        src={getTrackAudioUrl(track)} 
+                        type="audio/mpeg" 
+                      />
+                      Ваш браузер не поддерживает аудио элементы.
+                    </audio>
+                  </div>
+                )}
+
+                {/* Действия для трека */}
+                <div className="mt-3 flex gap-2">
+                  {track.status === 'ready' && (
+                    <button
+                      onClick={() => handleMarkAsReady(track.id)}
+                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                    >
+                      Отправить на проверку
+                    </button>
+                  )}
+                  
+                  {track.status === 'revision_requested' && (
+                    <button
+                      onClick={() => navigate(`/producer/tracks/${track.id}/edit`)}
+                      className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700"
+                    >
+                      Выполнить доработку
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => navigate(`/producer/tracks/${track.id}`)}
+                    className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700"
+                  >
+                    Детали
+                  </button>
+                </div>
+
+                {/* Временно убираем историю доработок - добавим позже */}
+                {/* {track.revision_history && track.revision_history.length > 0 && (
+                  <div className="mt-3 pt-3 border-t">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">История доработок</h4>
+                    <div className="space-y-2 text-sm">
+                      {track.revision_history.map((revision: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-2 rounded">
+                          <p className="font-medium">Версия {index + 1}</p>
+                          {revision.comment && (
+                            <p className="text-gray-600">Комментарий: {revision.comment}</p>
+                          )}
+                          <p className="text-gray-500 text-xs">
+                            {new Date(revision.date).toLocaleDateString('ru-RU')}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )} */}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-600 mb-4">Треки еще не загружены</p>
+            <button
+              onClick={() => setShowUploadForm(true)}
+              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
+            >
+              Загрузить первый трек
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default ProducerOrderDetailPage

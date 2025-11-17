@@ -14,6 +14,7 @@ from app.schemas.user import User as UserSchema
 from app.models.order import OrderStatus
 from app.models.tariff_plan import TariffPlan
 from app.services.order_service import order_service
+from app.services.order_status_service import order_status_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -223,3 +224,31 @@ async def request_revision(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при запросе правки: {str(e)}"
         )
+
+@router.post("/{order_id}/request-revision", response_model=Order)
+async def request_revision(
+    order_id: UUID,
+    revision_data: dict,  # {comment: str, track_ids: List[UUID]}
+    db = Depends(get_db),
+    current_user: UserSchema = Depends(get_current_user)
+):
+    """Пользователь запрашивает правку для треков"""
+    order = await crud_order.get_by_id(db, order_id)
+    
+    # Проверка прав
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Нет доступа")
+    
+    # Вызываем сервис
+    has_revisions_left = await order_status_service.on_revision_requested(db, order)
+    
+    if not has_revisions_left:
+        raise HTTPException(
+            status_code=400, 
+            detail="Лимит правок исчерпан"
+        )
+    
+    # TODO: Сохранить комментарий пользователя
+    # TODO: Пометить треки для перегенерации
+    
+    return order

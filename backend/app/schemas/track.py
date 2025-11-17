@@ -6,7 +6,6 @@ from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from app.models.track import TrackStatus
 
 class TrackBase(BaseModel):
     """Базовая схема трека"""
@@ -15,7 +14,6 @@ class TrackBase(BaseModel):
     preview_url: Optional[str] = None
     full_url: Optional[str] = None
     duration: Optional[int] = None
-    status: Optional[str] = None
     # ⬇️ НОВОЕ ПОЛЕ ДЛЯ PREVIEW
     is_preview: bool = Field(default=False)
 
@@ -30,7 +28,6 @@ class TrackAdminCreate(BaseModel):
     preview_url: Optional[str] = None
     full_url: Optional[str] = None
     title: Optional[str] = None
-    status: str = TrackStatus.READY
     
     class Config:
         from_attributes = True
@@ -40,7 +37,6 @@ class TrackUpdate(BaseModel):
     preview_url: Optional[str] = None
     full_url: Optional[str] = None
     title: Optional[str] = None
-    status: Optional[str] = None
     is_preview: Optional[bool] = None
 
 class Track(TrackBase):
@@ -72,7 +68,6 @@ class TrackSimple(BaseModel):
     id: UUID
     order_id: UUID
     title: Optional[str] = None
-    status: str
     is_preview: bool = False
     audio_filename: Optional[str] = None
     audio_size: Optional[int] = None

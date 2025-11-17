@@ -3,11 +3,12 @@ CRUD операции для треков
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy import and_
 from typing import Optional, List
 from uuid import UUID
 
-from app.models.track import Track as TrackModel, TrackStatus
+from app.models.track import Track as TrackModel
 from app.schemas.track import TrackCreate, TrackUpdate
 
 
@@ -23,6 +24,9 @@ class CRUDTrack:
         track_dict = track_data.dict()
         track_dict['order_id'] = order_id
         track_dict['is_preview'] = is_preview
+        
+        # УДАЛЯЕМ статус из данных, если он есть
+        track_dict.pop('status', None)
         
         track = TrackModel(**track_dict)
         db.add(track)
@@ -63,8 +67,7 @@ class CRUDTrack:
             .where(
                 and_(
                     TrackModel.order_id == order_id,
-                    TrackModel.is_preview == True,
-                    TrackModel.status == TrackStatus.READY_FOR_REVIEW
+                    TrackModel.is_preview == True
                 )
             )
             .order_by(TrackModel.version.desc())
@@ -96,8 +99,12 @@ class CRUDTrack:
         track = await self.get_by_id(db, track_id)
         if not track:
             return None
+        
+        # УДАЛЯЕМ статус из данных обновления
+        update_dict = update_data.dict(exclude_unset=True)
+        update_dict.pop('status', None)
             
-        for field, value in update_data.dict(exclude_unset=True).items():
+        for field, value in update_dict.items():
             setattr(track, field, value)
             
         await db.commit()
@@ -106,6 +113,9 @@ class CRUDTrack:
 
     async def create_with_data(self, db: AsyncSession, track_data: dict) -> TrackModel:
         """Создать трек с готовыми данными (для админки)"""
+        # УДАЛЯЕМ статус из данных
+        track_data.pop('status', None)
+        
         db_track = TrackModel(**track_data)
         db.add(db_track)
         await db.commit()
@@ -132,5 +142,28 @@ class CRUDTrack:
         )
         last_version = result.scalar()
         return (last_version or 0) + 1
+
+    async def delete_tracks_by_order(
+        self,
+        db: AsyncSession,
+        order_id: UUID,
+        is_preview: Optional[bool] = None
+    ) -> int:
+        """Удалить треки заказа (для перегенерации)"""
+        query = select(TrackModel).where(TrackModel.order_id == order_id)
+        
+        if is_preview is not None:
+            query = query.where(TrackModel.is_preview == is_preview)
+            
+        result = await db.execute(query)
+        tracks = result.scalars().all()
+        
+        deleted_count = 0
+        for track in tracks:
+            await db.delete(track)
+            deleted_count += 1
+            
+        await db.commit()
+        return deleted_count
         
 crud_track = CRUDTrack()

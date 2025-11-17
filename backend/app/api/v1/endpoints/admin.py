@@ -32,6 +32,7 @@ from app.crud.stats import crud_stats
 from app.crud.order import crud_order
 from app.schemas.user import User as UserSchema
 from app.crud.user import upsert_user_by_email, crud_user
+from app.services.order_status_service import order_status_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -75,29 +76,27 @@ async def get_tracks_debug_simple(
     Отладочный эндпоинт - возвращает простой JSON
     """
     try:
-        # Используем await для асинхронного запроса
         from sqlalchemy import text
         
-        # Простой SQL запрос чтобы избежать проблем с ORM
+        # ИСПРАВЛЕННЫЙ SQL - УДАЛИТЬ status из SELECT
         result = await db.execute(text("""
-            SELECT id, order_id, title, status, audio_filename, audio_size, audio_mimetype, created_at
+            SELECT id, order_id, title, audio_filename, audio_size, audio_mimetype, created_at, is_preview
             FROM tracks 
             ORDER BY created_at DESC
         """))
         rows = result.fetchall()
         
-        # Преобразуем в словари
         tracks_data = []
         for row in rows:
             tracks_data.append({
                 "id": str(row[0]),
                 "order_id": str(row[1]),
                 "title": row[2],
-                "status": row[3],
-                "audio_filename": row[4],
-                "audio_size": row[5],
-                "audio_mimetype": row[6],
-                "created_at": row[7].isoformat() if row[7] else None
+                "audio_filename": row[3],
+                "audio_size": row[4],
+                "audio_mimetype": row[5],
+                "created_at": row[6].isoformat() if row[6] else None,
+                "is_preview": row[7]  # ← ДОБАВИТЬ is_preview
             })
         
         return tracks_data
@@ -141,6 +140,7 @@ async def upload_track_to_order(
     order_id: UUID,
     file: UploadFile = File(...),
     title: Optional[str] = None,
+    is_preview: bool = Form(False),  # ← ДОБАВИТЬ параметр
     db: AsyncSession = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
 ):
@@ -165,7 +165,7 @@ async def upload_track_to_order(
         audio_filename=file_info["filename"],
         audio_size=file_info["size"],
         audio_mimetype=file_info["mimetype"],
-        status="ready"
+        is_preview=is_preview  # ← ИСПОЛЬЗОВАТЬ is_preview вместо status
     )
     db.add(db_track)
     await db.commit()
@@ -238,23 +238,24 @@ async def update_order_status(
 @router.get("/tracks", response_model=List[TrackWithOrder])
 async def get_all_tracks(
     order_id: Optional[UUID] = Query(None),
-    status: Optional[str] = Query(None),
+    # УДАЛИТЬ параметр status: Optional[str] = Query(None),
+    is_preview: Optional[bool] = Query(None),  # ← ДОБАВИТЬ фильтр по is_preview
     db: AsyncSession = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
 ):
     """
-    Получить все треки (админ) с информацией о заказах и связями
+    Получить все треки (админ) с информацией о заказах
     """
     query = select(TrackModel).options(
         selectinload(TrackModel.order).selectinload(OrderModel.user),
-        selectinload(TrackModel.order).selectinload(OrderModel.theme),  # ← ДОБАВЛЯЕМ
-        selectinload(TrackModel.order).selectinload(OrderModel.genre)   # ← ДОБАВЛЯЕМ
+        selectinload(TrackModel.order).selectinload(OrderModel.theme),
+        selectinload(TrackModel.order).selectinload(OrderModel.genre)
     )
     
     if order_id:
         query = query.where(TrackModel.order_id == order_id)
-    if status:
-        query = query.where(TrackModel.status == status)
+    if is_preview is not None:  # ← ЗАМЕНИТЬ status на is_preview
+        query = query.where(TrackModel.is_preview == is_preview)
         
     result = await db.execute(query)
     tracks = result.unique().scalars().all()
@@ -264,33 +265,26 @@ async def get_all_tracks(
 @router.post("/orders/{order_id}/tracks", response_model=Track)
 async def add_track_to_order(
     order_id: UUID,
-    track_data: TrackAdminCreate,
+    track_data: TrackAdminCreate,  # ← ОБНОВИТЬ СХЕМУ (убрать status)
     db: AsyncSession = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
 ):
-    """
-    Добавить существующий трек к заказу (админ)
-    """
-    # Проверяем что заказ существует
-    order_query = select(OrderModel).where(OrderModel.id == order_id)
-    order_result = await db.execute(order_query)
-    order = order_result.scalar_one_or_none()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Заказ не найден")
-    
-    # Создаем трек с готовыми данными
+    order = await crud_order.get_by_id(db, order_id)
+    # Создаем трек БЕЗ статуса
     db_track = TrackModel(
         order_id=order_id,
         suno_id=track_data.suno_id,
         preview_url=track_data.preview_url,
         full_url=track_data.full_url,
         title=track_data.title,
-        status=track_data.status
+        is_preview=track_data.is_preview  # ← ВАЖНО: указываем preview или полная версия
     )
     db.add(db_track)
     await db.commit()
-    await db.refresh(db_track)
+    
+    # Обновляем статус заказа
+    await order_status_service.on_tracks_changed(db, order)
+    
     return db_track
 
 
