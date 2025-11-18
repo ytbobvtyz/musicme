@@ -14,7 +14,7 @@ import os
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_producer
 from app.models.user import User
-from app.models.order import Order
+from app.models.order import Order, OrderStatus
 from app.schemas.order import Order as OrderSchema
 from app.schemas.order import OrderDetail
 from app.schemas.user import User as UserSchema
@@ -165,7 +165,7 @@ async def upload_track(
     order_id: UUID = Form(...),
     title: str = Form(...),
     audio_file: UploadFile = File(...),
-    is_preview: bool = Form(True),  # ← по умолчанию превью
+    is_preview: bool = Form(True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -234,7 +234,7 @@ async def upload_track(
             audio_filename=file_info["filename"],
             audio_size=file_info["size"],
             audio_mimetype=file_info["mimetype"],
-            is_preview=is_preview  # ← используем is_preview как в админке
+            is_preview=is_preview
         )
         
         db.add(db_track)
@@ -242,6 +242,14 @@ async def upload_track(
         await db.refresh(db_track)
         
         print(f"✅ Track created: {db_track.id}, is_preview: {db_track.is_preview}")
+        
+        # ⬇️⬇️⬇️ ВАЖНОЕ ИЗМЕНЕНИЕ: Автоматически меняем статус заказа при загрузке превью
+        if is_preview and order.status in [OrderStatus.IN_PROGRESS, OrderStatus.DRAFT]:
+            print(f"🔄 Auto-updating order status from {order.status} to READY_FOR_REVIEW")
+            order.status = OrderStatus.READY_FOR_REVIEW
+            await db.commit()
+            await db.refresh(order)
+            print(f"✅ Order status updated to: {order.status}")
         
         return TrackSchema.model_validate(db_track)
         
@@ -255,67 +263,81 @@ async def upload_track(
             detail=f"Ошибка при загрузке трека: {str(e)}"
         )
 
-async def _create_preview_version (audio_file: UploadFile) -> dict:
+async def _create_preview_version(audio_file: UploadFile) -> dict:
     """
-    Создать превью версию используя pydub
+    Обрезка через SOX для MP3 и WAV
     """
     try:
-        print("🔍 Starting preview creation with pydub...")
+        print("🔍 Starting preview creation with SOX...")
         
-        # Читаем содержимое файла в память
+        # Читаем файл
         file_content = await audio_file.read()
-        print(f"🔍 Original file size: {len(file_content)} bytes")
+        
+        # Определяем расширение
+        original_ext = os.path.splitext(audio_file.filename)[1].lower()
+        
+        # Поддерживаем только MP3 и WAV
+        if original_ext not in ['.mp3', '.wav']:
+            print(f"❌ Unsupported format: {original_ext}, converting to MP3")
+            output_ext = '.mp3'
+        else:
+            output_ext = original_ext
         
         # Создаем временный файл
         import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            temp_file.write(file_content)
-            temp_path = temp_file.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=original_ext) as temp_input:
+            temp_input.write(file_content)
+            temp_input_path = temp_input.name
         
-        try:
-            from pydub import AudioSegment
-            
-            # Загружаем аудио файл
-            audio = AudioSegment.from_file(temp_path)
-            print(f"🔍 Original audio duration: {len(audio) / 1000} seconds")
-            
-            # Обрезаем до 60 секунд (60000 миллисекунд)
-            preview_audio = audio[:60000]  # первые 60 секунд
-            
-            # Сохраняем превью
-            output_filename = f"{uuid.uuid4()}_preview.mp3"
-            output_path = os.path.join(file_storage.audio_dir, output_filename)
-            
-            preview_audio.export(output_path, format="mp3")
-            
-            # Получаем информацию о файле
+        # Выходной файл
+        output_filename = f"{uuid.uuid4()}_preview{output_ext}"
+        output_path = os.path.join(file_storage.audio_dir, output_filename)
+        
+        # Команда SOX для обрезки
+        import subprocess
+        cmd = [
+            'sox',
+            temp_input_path,
+            output_path,
+            'trim', '0', '60'  # первые 60 секунд
+        ]
+        
+        print(f"🔍 Running SOX command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        # Удаляем временный файл
+        os.unlink(temp_input_path)
+        
+        if result.returncode == 0 and os.path.exists(output_path):
             file_size = os.path.getsize(output_path)
-            print(f"✅ Preview created with pydub: {output_filename}, size: {file_size} bytes")
+            print(f"✅ SOX preview created: {output_filename}, size: {file_size} bytes")
+            
+            # Определяем MIME тип
+            mime_type = "audio/mpeg" if output_ext == '.mp3' else "audio/wav"
             
             return {
                 "filename": output_filename,
                 "size": file_size,
-                "mimetype": "audio/mpeg",
+                "mimetype": mime_type,
                 "original_name": audio_file.filename
             }
-            
-        except ImportError:
-            print("❌ Pydub not available, using original file")
-            os.unlink(temp_path)
+        else:
+            print(f"❌ SOX failed: {result.stderr}")
+            # Fallback: сохраняем оригинал
             audio_file.file.seek(0)
             return await file_storage.save_audio_file(audio_file, "audio")
             
-        except Exception as e:
-            print(f"❌ Pydub error: {str(e)}")
-            os.unlink(temp_path)
-            audio_file.file.seek(0)
-            return await file_storage.save_audio_file(audio_file, "audio")
-            
+    except subprocess.TimeoutExpired:
+        print("❌ SOX timeout")
+        if 'temp_input_path' in locals() and os.path.exists(temp_input_path):
+            os.unlink(temp_input_path)
+        audio_file.file.seek(0)
+        return await file_storage.save_audio_file(audio_file, "audio")
+        
     except Exception as e:
-        print(f"❌ Error creating preview with pydub: {str(e)}")
-        # Удаляем временный файл если он существует
-        if 'temp_path' in locals() and os.path.exists(temp_path):
-            os.unlink(temp_path)
+        print(f"❌ SOX error: {str(e)}")
+        if 'temp_input_path' in locals() and os.path.exists(temp_input_path):
+            os.unlink(temp_input_path)
         audio_file.file.seek(0)
         return await file_storage.save_audio_file(audio_file, "audio")
 

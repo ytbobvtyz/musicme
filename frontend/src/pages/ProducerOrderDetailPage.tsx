@@ -70,10 +70,26 @@ const ProducerOrderDetailPage = () => {
 
   const handleMarkAsReady = async (trackId: string) => {
     try {
+      // Обновляем статус трека
       await updateTrack(trackId, { status: 'ready' })
+      
+      // Обновляем статус заказа на READY_FOR_REVIEW
       await updateOrderStatus(orderId!, 'ready_for_review')
+      
       await loadOrder()
       alert('Трек помечен как готовый для проверки клиентом')
+    } catch (error) {
+      console.error('Ошибка при обновлении статуса:', error)
+      alert('Ошибка при обновлении статуса')
+    }
+  }
+
+  // Добавляем функцию для возврата в работу
+  const handleReturnToWork = async () => {
+    try {
+      await updateOrderStatus(orderId!, 'in_progress')
+      await loadOrder()
+      alert('Заказ возвращен в работу')
     } catch (error) {
       console.error('Ошибка при обновлении статуса:', error)
       alert('Ошибка при обновлении статуса')
@@ -176,6 +192,16 @@ const ProducerOrderDetailPage = () => {
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
             >
               + Загрузить трек
+            </button>
+          )}
+          
+          {/* ⬇️ ДОБАВЛЯЕМ КНОПКУ ДЛЯ РУЧНОГО ВОЗВРАТА В РАБОТУ */}
+          {order.status === 'ready_for_review' && (
+            <button
+              onClick={handleReturnToWork}
+              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+            >
+              Вернуть в работу
             </button>
           )}
         </div>
@@ -368,16 +394,15 @@ const ProducerOrderDetailPage = () => {
                 )}
 
                 {/* Действия для трека */}
-                <div className="mt-3 flex gap-2">
-                  {track.status === 'ready' && (
-                    <button
-                      onClick={() => handleMarkAsReady(track.id)}
-                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                    >
-                      Отправить на проверку
-                    </button>
-                  )}
-                  
+                  <div className="mt-3 flex gap-2">
+                    {track.status === 'ready' && order.status === 'in_progress' && (
+                      <button
+                        onClick={() => handleMarkAsReady(track.id)}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                      >
+                        Отправить на проверку
+                      </button>
+                    )}
                   {track.status === 'revision_requested' && (
                     <button
                       onClick={() => navigate(`/producer/tracks/${track.id}/edit`)}

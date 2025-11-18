@@ -2,19 +2,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Установка зависимостей
-RUN apt-get update && apt-get install -y \
-    gcc \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Установка только необходимых пакетов для MP3 и WAV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sox \
+    libsox-fmt-mp3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Копирование requirements и установка Python пакетов
+# WAV поддерживается из коробки, MP3 нужен libsox-fmt-mp3
+
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копирование кода
 COPY backend/ .
 
-# Команда запуска
-# Используем python -m для правильной работы с относительными импортами
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
