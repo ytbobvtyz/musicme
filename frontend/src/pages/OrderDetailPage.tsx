@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
-import { getOrder } from '@/api/orders'
+import { getOrder, requestRevision } from '@/api/orders'
+import { createPayment } from '@/api/payments'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { OrderDetail } from '@/types/order'
 
@@ -10,6 +11,9 @@ const OrderDetailPage = () => {
   const { isAuthenticated } = useAuthStore()
   const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showRevisionModal, setShowRevisionModal] = useState(false)
+  const [revisionComment, setRevisionComment] = useState('')
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated && orderId) {
@@ -20,8 +24,8 @@ const OrderDetailPage = () => {
   const loadOrder = async () => {
     try {
       const data = await getOrder(orderId!)
-      console.log('📦 Получен заказ:', data) // ← ДЛЯ ОТЛАДКИ
-      console.log('🎵 Треки заказа:', data.tracks) 
+      console.log('📦 Получен заказ:', data)
+      console.log('🎵 Треки заказа:', data.tracks)
       setOrder(data)
     } catch (error) {
       console.error('Ошибка при загрузке заказа:', error)
@@ -42,13 +46,52 @@ const OrderDetailPage = () => {
     const statusMap: Record<string, string> = {
       'generating': 'Генерируется',
       'ready': 'Готов',
+      'ready_for_review': 'На проверке',
+      'revision_requested': 'Требует доработки',
+      'paid': 'Оплачен',
       'error': 'Ошибка'
     }
     return statusMap[status] || status
   }
 
+  const handleRequestRevision = async () => {
+    if (!revisionComment.trim()) {
+      alert('Пожалуйста, укажите комментарий к правке')
+      return
+    }
 
-  // ⬇️⬇️⬇️ ОБНОВИЛИ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЪЕКТАМИ ⬇️⬇️⬇️
+    setProcessing(true)
+    try {
+      await requestRevision(orderId!, revisionComment)
+      await loadOrder()
+      setShowRevisionModal(false)
+      setRevisionComment('')
+      alert('Правка запрошена успешно!')
+    } catch (error: any) {
+      console.error('Ошибка при запросе правки:', error)
+      alert(error.message || 'Ошибка при запросе правки')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleCreatePayment = async () => {
+    if (!orderId) return
+
+    setProcessing(true)
+    try {
+      const result = await createPayment(orderId)
+      // Редирект на страницу оплаты ЮKassa
+      window.location.href = result.payment_url
+    } catch (error: any) {
+      console.error('Ошибка при создании платежа:', error)
+      alert(error.message || 'Ошибка при создании платежа')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  // Функции для работы с объектами
   const getThemeText = (themeObj?: { name: string }) => {
     return themeObj?.name || 'Неизвестно'
   }
@@ -56,6 +99,9 @@ const OrderDetailPage = () => {
   const getGenreText = (genreObj?: { name: string }) => {
     return genreObj?.name || 'Неизвестно'
   }
+
+  // Проверка доступности правок
+  const canRequestRevision = order && order.rounds_remaining > 0
 
   if (!isAuthenticated) {
     return (
@@ -109,12 +155,10 @@ const OrderDetailPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm text-gray-500">Повод</label>
-            {/* ⬇️⬇️⬇️ ИСПОЛЬЗУЕМ ОБЪЕКТ theme ⬇️⬇️⬇️ */}
             <p className="font-medium">{getThemeText(order.theme)}</p>
           </div>
           <div>
             <label className="text-sm text-gray-500">Жанр</label>
-            {/* ⬇️⬇️⬇️ ИСПОЛЬЗУЕМ ОБЪЕКТ genre ⬇️⬇️⬇️ */}
             <p className="font-medium">{getGenreText(order.genre)}</p>
           </div>
           <div>
@@ -126,6 +170,14 @@ const OrderDetailPage = () => {
             <p className="font-medium">
               {new Date(order.created_at).toLocaleDateString('ru-RU')}
             </p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-500">Тариф</label>
+            <p className="font-medium capitalize">{order.tariff_plan}</p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-500">Цена</label>
+            <p className="font-medium">{order.price} ₽</p>
           </div>
         </div>
       </div>
@@ -163,6 +215,7 @@ const OrderDetailPage = () => {
           </a>
         </div>
       )}
+
       {/* Секция с треками */}
       {order.tracks && order.tracks.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -183,9 +236,14 @@ const OrderDetailPage = () => {
                         Длительность: {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}
                       </p>
                     )}
+                    {track.is_preview && (
+                      <p className="text-sm text-purple-600">🎵 Превью версия (60 сек)</p>
+                    )}
                   </div>
                   <span className={`px-2 py-1 rounded-full text-xs ${
                     track.status === 'ready' ? 'bg-green-100 text-green-800' :
+                    track.status === 'ready_for_review' ? 'bg-blue-100 text-blue-800' :
+                    track.status === 'revision_requested' ? 'bg-orange-100 text-orange-800' :
                     track.status === 'generating' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-red-100 text-red-800'
                   }`}>
@@ -194,7 +252,7 @@ const OrderDetailPage = () => {
                 </div>
 
                 {/* Аудиоплеер для готовых треков */}
-                {track.status === 'ready' && (
+                {(track.status === 'ready' || track.status === 'ready_for_review') && (
                   <div className="mt-3">
                     <audio 
                       controls 
@@ -207,20 +265,8 @@ const OrderDetailPage = () => {
                       Ваш браузер не поддерживает аудио элементы.
                     </audio>
                     {track.is_paid && (
-                      <p className="text-sm text-green-600 mt-2">✅ Оплачено</p>
+                      <p className="text-sm text-green-600 mt-2">✅ Полная версия</p>
                     )}
-                  </div>
-                )}
-
-                {/* Кнопка оплаты для превью */}
-                {track.status === 'ready' && track.preview_url && !track.is_paid && (
-                  <div className="mt-3 flex justify-between items-center">
-                    <span className="text-sm text-gray-600">
-                      Доступно 60 секунд превью
-                    </span>
-                    <button className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm">
-                      Купить полную версию
-                    </button>
                   </div>
                 )}
               </div>
@@ -238,10 +284,79 @@ const OrderDetailPage = () => {
           </p>
         </div>
       )}
-      {/* Действия */}
+
+      {/* Модальное окно для запроса правки */}
+      {showRevisionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">Запрос правки</h3>
+            <p className="text-sm text-gray-600 mb-2">
+              Осталось правок: <strong>{order?.rounds_remaining || 0}</strong>
+            </p>
+            <textarea
+              value={revisionComment}
+              onChange={(e) => setRevisionComment(e.target.value)}
+              placeholder="Опишите, что именно нужно изменить в треке..."
+              className="w-full border border-gray-300 rounded-lg p-3 mb-4 h-32 resize-none"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleRequestRevision}
+                disabled={processing || !revisionComment.trim()}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 flex-1"
+              >
+                {processing ? 'Отправка...' : 'Отправить на доработку'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowRevisionModal(false)
+                  setRevisionComment('')
+                }}
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex-1"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Блок действий */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">Действия</h2>
         <div className="flex flex-wrap gap-4">
+          {/* Запрос правки */}
+          {order.status === 'ready_for_review' && (
+            <>
+              {canRequestRevision ? (
+                <button
+                  onClick={() => setShowRevisionModal(true)}
+                  className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700"
+                >
+                  Отправить на доработку
+                </button>
+              ) : (
+                <div className="bg-gray-100 p-3 rounded-lg">
+                  <p className="text-gray-600 text-sm">
+                    Лимит правок по вашему тарифу исчерпан
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Оплата */}
+          {order.status === 'ready_for_review' && (
+            <button
+              onClick={handleCreatePayment}
+              disabled={processing}
+              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {processing ? 'Обработка...' : `Оплатить ${order.price} ₽`}
+            </button>
+          )}
+
+          {/* Интервью */}
           {order.status === 'waiting_interview' && order.interview_link && (
             <a 
               href={order.interview_link}
@@ -252,6 +367,7 @@ const OrderDetailPage = () => {
               Пройти интервью
             </a>
           )}
+          
           <Link 
             to="/orders"
             className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700"
@@ -259,6 +375,20 @@ const OrderDetailPage = () => {
             К списку заказов
           </Link>
         </div>
+
+        {/* Информация о правках */}
+        {order.status === 'ready_for_review' && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              Осталось правок по тарифу: <strong>{order.rounds_remaining}</strong>
+            </p>
+            {order.rounds_remaining === 0 && (
+              <p className="text-sm text-orange-800 mt-1">
+                После исчерпания лимита вы не сможете запрашивать дополнительные правки
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

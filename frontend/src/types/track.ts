@@ -14,6 +14,7 @@ export interface Track {
   status: string
   created_at: string
   updated_at?: string
+  is_preview?: boolean
   
   // Опциональные связи
   order?: {

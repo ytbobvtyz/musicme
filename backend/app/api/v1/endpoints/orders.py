@@ -184,13 +184,19 @@ async def approve_order(
 @router.post("/{order_id}/request-revision", response_model=Order)
 async def request_revision(
     order_id: UUID,
+    revision_data: dict = None,  # Делаем параметр опциональным
     db = Depends(get_db),
     current_user: UserSchema = Depends(get_current_user)
 ):
     """
-    Запросить правку для заказа
+    Запросить правку для заказа с комментарием
     """
     try:
+        # Извлекаем комментарий если есть
+        comment = ""
+        if revision_data and 'comment' in revision_data:
+            comment = revision_data.get('comment', '')
+        
         # Проверяем что заказ принадлежит пользователю
         order = await crud_order.get_by_id(db, order_id)
         if not order:
@@ -199,6 +205,13 @@ async def request_revision(
         if order.user_id != current_user.id:
             raise HTTPException(status_code=403, detail="Нет доступа к этому заказу")
         
+        # Проверяем что заказ в правильном статусе
+        if order.status != OrderStatus.READY_FOR_REVIEW:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Запрос правки возможен только когда заказ готов для проверки"
+            )
+        
         # Проверяем что есть доступные правки
         if order.rounds_remaining <= 0:
             raise HTTPException(
@@ -206,14 +219,24 @@ async def request_revision(
                 detail="Лимит правок исчерпан"
             )
         
-        # Уменьшаем количество оставшихся правок
-        order.rounds_remaining -= 1
-        order.status = OrderStatus.IN_PROGRESS  # Возвращаем в работу
+        # Используем сервис для обработки правки
+        has_revisions_left = await order_status_service.on_revision_requested(db, order)
         
-        await db.commit()
-        await db.refresh(order)
+        if not has_revisions_left:
+            raise HTTPException(
+                status_code=400, 
+                detail="Лимит правок исчерпан"
+            )
         
-        logger.info(f"Запрошена правка для заказа: {order_id}, осталось правок: {order.rounds_remaining}")
+        # TODO: Сохранить комментарий пользователя
+        if comment:
+            print(f"📝 Комментарий к правке: {comment}")
+            # await _save_revision_comment(db, order_id, comment, current_user.id)
+        
+        # TODO: Пометить треки для перегенерации
+        # TODO: Отправить уведомление продюсеру
+        
+        logger.info(f"Запрошена правка для заказа: {order_id}, комментарий: {comment}, осталось правок: {order.rounds_remaining}")
         return order
         
     except HTTPException:
@@ -224,31 +247,3 @@ async def request_revision(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при запросе правки: {str(e)}"
         )
-
-@router.post("/{order_id}/request-revision", response_model=Order)
-async def request_revision(
-    order_id: UUID,
-    revision_data: dict,  # {comment: str, track_ids: List[UUID]}
-    db = Depends(get_db),
-    current_user: UserSchema = Depends(get_current_user)
-):
-    """Пользователь запрашивает правку для треков"""
-    order = await crud_order.get_by_id(db, order_id)
-    
-    # Проверка прав
-    if order.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Нет доступа")
-    
-    # Вызываем сервис
-    has_revisions_left = await order_status_service.on_revision_requested(db, order)
-    
-    if not has_revisions_left:
-        raise HTTPException(
-            status_code=400, 
-            detail="Лимит правок исчерпан"
-        )
-    
-    # TODO: Сохранить комментарий пользователя
-    # TODO: Пометить треки для перегенерации
-    
-    return order
