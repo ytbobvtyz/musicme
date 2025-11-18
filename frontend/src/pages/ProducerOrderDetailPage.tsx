@@ -38,23 +38,25 @@ const ProducerOrderDetailPage = () => {
   const handleUploadTrack = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!orderId || !newTrackTitle.trim()) return
-
+  
     setUploading(true)
     try {
       const formData = new FormData()
       const fileInput = document.getElementById('audioFile') as HTMLInputElement
+      const trackTypeInput = document.querySelector('input[name="trackType"]:checked') as HTMLInputElement
       
       if (!fileInput?.files?.[0]) {
         alert('Пожалуйста, выберите аудиофайл')
         return
       }
-
+  
       formData.append('audio_file', fileInput.files[0])
       formData.append('title', newTrackTitle)
       formData.append('order_id', orderId)
-
+      formData.append('is_preview', trackTypeInput.value === 'preview' ? 'true' : 'false')
+  
       await uploadTrack(formData)
-      await loadOrder() // Перезагружаем заказ
+      await loadOrder()
       setShowUploadForm(false)
       setNewTrackTitle('')
       alert('Трек успешно загружен!')
@@ -243,6 +245,40 @@ const ProducerOrderDetailPage = () => {
                 placeholder="Например: Поздравление для Марии"
                 required
               />
+            </div>
+            
+            {/* Переключатель превью/полный трек */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Версия трека
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="trackType"
+                    value="preview"
+                    defaultChecked={order?.status !== 'paid'}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Превью (первые 60 секунд)</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="trackType"
+                    value="full"
+                    defaultChecked={order?.status === 'paid'}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Полная версия</span>
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {order?.status === 'paid' 
+                  ? 'Заказ оплачен - загружайте полную версию' 
+                  : 'Для неподтвержденных заказов рекомендуется загружать превью'}
+              </p>
             </div>
             
             <div>

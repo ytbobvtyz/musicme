@@ -9,7 +9,8 @@ const getAuthHeaders = () => {
 }
 
 export const getProducerOrders = async (orderStatus?: string): Promise<Order[]> => {
-  const params = orderStatus ? `?order_status=${orderStatus}` : ''  // ← меняем параметр
+  // ИСПРАВЛЯЕМ параметр с order_status на orderStatus
+  const params = orderStatus ? `?order_status=${orderStatus}` : ''  // ← теперь правильно!
   const response = await fetch(`/api/v1/producer/orders${params}`, {
     headers: getAuthHeaders()
   })

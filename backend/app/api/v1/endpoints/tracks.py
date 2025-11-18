@@ -44,10 +44,6 @@ async def get_track_audio(
     if not track:
         raise HTTPException(status_code=404, detail="Трек не найден")
     
-    # Проверяем что трек готов
-    if track.status != 'ready':
-        raise HTTPException(status_code=404, detail="Трек еще не готов")
-    
     if not track.audio_filename:
         raise HTTPException(status_code=404, detail="Аудиофайл не найден")
     

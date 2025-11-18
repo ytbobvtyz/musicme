@@ -3,12 +3,14 @@ import { useAuthStore } from '@/store/authStore'
 import { getProducerOrders, updateOrderStatus } from '@/api/producer'
 import { Order } from '@/types/order'
 import ProducerLayout from '@/components/producer/ProducerLayout'
+import { useNavigate } from 'react-router-dom'
 
 const ProducerPage = () => {
   const { user } = useAuthStore()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'in_progress' | 'awaiting_interview'>('in_progress')
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (user) {
@@ -29,8 +31,11 @@ const ProducerPage = () => {
 
   const handleStartWork = async (orderId: string) => {
     try {
+      // Обновляем статус на "в работе"
       await updateOrderStatus(orderId, 'in_progress')
-      await loadOrders()
+      
+      // Переходим на страницу заказа
+      navigate(`/producer/orders/${orderId}`)
     } catch (error) {
       console.error('Error starting work:', error)
       alert('Ошибка при старте работы')
