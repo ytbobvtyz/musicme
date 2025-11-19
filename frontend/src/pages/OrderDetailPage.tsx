@@ -42,16 +42,9 @@ const OrderDetailPage = () => {
     return track.preview_url || track.full_url
   }
 
-  const getTrackStatusText = (status: string) => {
-    const statusMap: Record<string, string> = {
-      'generating': 'Генерируется',
-      'ready': 'Готов',
-      'ready_for_review': 'На проверке',
-      'revision_requested': 'Требует доработки',
-      'paid': 'Оплачен',
-      'error': 'Ошибка'
-    }
-    return statusMap[status] || status
+  // Функция для проверки доступности аудио
+  const hasAudio = (track: any) => {
+    return track.audio_filename || track.preview_url || track.full_url
   }
 
   const handleRequestRevision = async () => {
@@ -228,31 +221,23 @@ const OrderDetailPage = () => {
                     <h3 className="font-semibold text-gray-900">
                       {track.title || `Трек ${track.id.slice(0, 8)}`}
                     </h3>
-                    <p className="text-sm text-gray-600">
-                      Статус: {getTrackStatusText(track.status)}
-                    </p>
                     {track.duration && (
                       <p className="text-sm text-gray-600">
                         Длительность: {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}
                       </p>
                     )}
-                    {track.is_preview && (
+                    {/* Показываем тип трека */}
+                    {track.is_preview ? (
                       <p className="text-sm text-purple-600">🎵 Превью версия (60 сек)</p>
+                    ) : (
+                      <p className="text-sm text-green-600">✅ Полная версия</p>
                     )}
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    track.status === 'ready' ? 'bg-green-100 text-green-800' :
-                    track.status === 'ready_for_review' ? 'bg-blue-100 text-blue-800' :
-                    track.status === 'revision_requested' ? 'bg-orange-100 text-orange-800' :
-                    track.status === 'generating' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {getTrackStatusText(track.status)}
-                  </span>
+                  {/* УДАЛЯЕМ статус трека */}
                 </div>
 
-                {/* Аудиоплеер для готовых треков */}
-                {(track.status === 'ready' || track.status === 'ready_for_review') && (
+                {/* Аудиоплеер - показываем всегда если есть аудио */}
+                {hasAudio(track) && (
                   <div className="mt-3">
                     <audio 
                       controls 
@@ -264,9 +249,22 @@ const OrderDetailPage = () => {
                       />
                       Ваш браузер не поддерживает аудио элементы.
                     </audio>
-                    {track.is_paid && (
-                      <p className="text-sm text-green-600 mt-2">✅ Полная версия</p>
+                    
+                    {/* Информация о доступности */}
+                    {track.is_preview && order.status === 'ready_for_review' && (
+                      <p className="text-sm text-blue-600 mt-2">
+                        ⏱️ Доступно для прослушивания 60 секунд
+                      </p>
                     )}
+                  </div>
+                )}
+
+                {/* Сообщение если аудио нет */}
+                {!hasAudio(track) && (
+                  <div className="mt-3 p-3 bg-yellow-50 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      Аудиофайл еще не загружен
+                    </p>
                   </div>
                 )}
               </div>

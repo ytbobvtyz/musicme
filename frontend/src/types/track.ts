@@ -10,8 +10,6 @@ export interface Track {
   audio_size?: number
   audio_mimetype?: string
   duration?: number
-  is_paid: boolean
-  status: string
   created_at: string
   updated_at?: string
   is_preview?: boolean
@@ -49,6 +47,7 @@ export interface TrackCreate {
   order_id: string
   title?: string
   audio_file?: File
+  is_preview?: boolean
 }
 
 // Для обновления трека
@@ -58,4 +57,5 @@ export interface TrackUpdate {
   suno_id?: string
   preview_url?: string
   full_url?: string
+  is_preview?: boolean
 }
