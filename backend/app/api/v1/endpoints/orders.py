@@ -15,6 +15,7 @@ from app.models.order import OrderStatus
 from app.models.tariff_plan import TariffPlan
 from app.services.order_service import order_service
 from app.services.order_status_service import order_status_service
+from app.crud.revision import crud_revision_comment
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -181,10 +182,11 @@ async def approve_order(
             detail=f"Ошибка при подтверждении заказа: {str(e)}"
         )
 
+# app/api/v1/endpoints/orders.py - обновляем request_revision
 @router.post("/{order_id}/request-revision", response_model=Order)
 async def request_revision(
     order_id: UUID,
-    revision_data: dict = None,  # Делаем параметр опциональным
+    revision_data: dict = None,
     db = Depends(get_db),
     current_user: UserSchema = Depends(get_current_user)
 ):
@@ -192,10 +194,16 @@ async def request_revision(
     Запросить правку для заказа с комментарием
     """
     try:
-        # Извлекаем комментарий если есть
+        # Извлекаем комментарий
         comment = ""
         if revision_data and 'comment' in revision_data:
-            comment = revision_data.get('comment', '')
+            comment = revision_data.get('comment', '').strip()
+        
+        if not comment:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Комментарий обязателен для запроса правки"
+            )
         
         # Проверяем что заказ принадлежит пользователю
         order = await crud_order.get_by_id(db, order_id)
@@ -219,6 +227,17 @@ async def request_revision(
                 detail="Лимит правок исчерпан"
             )
         
+        # Получаем номер следующей правки
+        revision_number = await crud_revision_comment.get_last_revision_number(db, order_id) + 1
+        
+        # Сохраняем комментарий
+        from app.schemas.revision import RevisionCommentCreate
+        comment_data = RevisionCommentCreate(
+            order_id=order_id,
+            comment=comment
+        )
+        await crud_revision_comment.create(db, comment_data, current_user.id, revision_number)
+        
         # Используем сервис для обработки правки
         has_revisions_left = await order_status_service.on_revision_requested(db, order)
         
@@ -228,15 +247,7 @@ async def request_revision(
                 detail="Лимит правок исчерпан"
             )
         
-        # TODO: Сохранить комментарий пользователя
-        if comment:
-            print(f"📝 Комментарий к правке: {comment}")
-            # await _save_revision_comment(db, order_id, comment, current_user.id)
-        
-        # TODO: Пометить треки для перегенерации
-        # TODO: Отправить уведомление продюсеру
-        
-        logger.info(f"Запрошена правка для заказа: {order_id}, комментарий: {comment}, осталось правок: {order.rounds_remaining}")
+        logger.info(f"Запрошена правка для заказа: {order_id}, комментарий: {comment}, правка #{revision_number}, осталось правок: {order.rounds_remaining}")
         return order
         
     except HTTPException:
@@ -246,4 +257,60 @@ async def request_revision(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при запросе правки: {str(e)}"
+        )
+    
+
+@router.get("/{order_id}/revision-comments")
+async def get_revision_comments(
+    order_id: UUID,
+    db = Depends(get_db),
+    current_user: UserSchema = Depends(get_current_user)
+):
+    """
+    Получить комментарии правок для заказа
+    """
+    try:
+        # Проверяем что заказ существует
+        order = await crud_order.get_by_id(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        # Проверяем права доступа
+        has_access = (
+            order.user_id == current_user.id or 
+            order.producer_id == current_user.id or 
+            current_user.is_admin
+        )
+        
+        if not has_access:
+            raise HTTPException(status_code=403, detail="Нет доступа к комментариям")
+        
+        # Получаем комментарии
+        comments = await crud_revision_comment.get_by_order(db, order_id)
+        
+        # Форматируем ответ
+        from app.schemas.revision import RevisionCommentWithUser
+        formatted_comments = []
+        for comment in comments:
+            comment_dict = {
+                "id": comment.id,
+                "order_id": comment.order_id,
+                "user_id": comment.user_id,
+                "comment": comment.comment,
+                "revision_number": comment.revision_number,
+                "created_at": comment.created_at,
+                "user_name": comment.user.name if comment.user else "Пользователь",
+                "user_email": comment.user.email if comment.user else ""
+            }
+            formatted_comments.append(comment_dict)
+        
+        return formatted_comments
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении комментариев: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при получении комментариев: {str(e)}"
         )

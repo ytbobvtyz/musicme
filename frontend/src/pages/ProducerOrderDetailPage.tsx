@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrder } from '@/api/orders'
 import { updateOrderStatus, uploadTrack, updateTrack } from '@/api/producer'
+import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { OrderDetail } from '@/types/order'
 import { Track } from '@/types/track'
@@ -17,10 +18,12 @@ const ProducerOrderDetailPage = () => {
   const [uploading, setUploading] = useState(false)
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [newTrackTitle, setNewTrackTitle] = useState('')
-
+  const [revisionComments, setRevisionComments] = useState<RevisionComment[]>([])
+  
   useEffect(() => {
     if (isAuthenticated && orderId) {
       loadOrder()
+      loadRevisionComments()
     }
   }, [isAuthenticated, orderId])
 
@@ -32,6 +35,15 @@ const ProducerOrderDetailPage = () => {
       console.error('Ошибка при загрузке заказа:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadRevisionComments = async () => {
+    try {
+      const comments = await getRevisionComments(orderId!)
+      setRevisionComments(comments)
+    } catch (error) {
+      console.error('Ошибка при загрузке комментариев:', error)
     }
   }
 
@@ -104,16 +116,19 @@ const ProducerOrderDetailPage = () => {
     return track.preview_url || track.full_url || ''
   }
 
-  const getTrackStatusText = (status: string) => {
-    const statusMap: Record<string, string> = {
-      'generating': 'Генерируется',
-      'ready': 'Готов для проверки',
-      'ready_for_review': 'На проверке у клиента',
-      'revision_requested': 'Требует доработки',
-      'paid': 'Оплачен',
-      'completed': 'Завершен'
-    }
-    return statusMap[status] || status
+
+
+  const getGroupedRevisionComments = () => {
+    const grouped: { [key: number]: RevisionComment[] } = {}
+    
+    revisionComments.forEach(comment => {
+      if (!grouped[comment.revision_number]) {
+        grouped[comment.revision_number] = []
+      }
+      grouped[comment.revision_number].push(comment)
+    })
+    
+    return grouped
   }
 
   // Проверка доступа к заказу
@@ -339,7 +354,47 @@ const ProducerOrderDetailPage = () => {
           </form>
         </div>
       )}
-
+      {/* КОММЕНТАРИИ ПРАВОК */}
+      {revisionComments.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">История правок и комментарии</h2>
+          <div className="space-y-6">
+            {Object.entries(getGroupedRevisionComments())
+              .sort(([a], [b]) => parseInt(b) - parseInt(a)) // Сортируем по убыванию номера правки
+              .map(([revisionNumber, comments]) => (
+                <div key={revisionNumber} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-sm font-medium">
+                      Правка #{revisionNumber}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {new Date(comments[0].created_at).toLocaleDateString('ru-RU')}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {comments.map((comment) => (
+                      <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="font-medium text-gray-900">
+                            {comment.user_name || 'Пользователь'}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {new Date(comment.created_at).toLocaleTimeString('ru-RU', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
       {/* Секция с треками */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-4">
@@ -358,23 +413,12 @@ const ProducerOrderDetailPage = () => {
                     <h3 className="font-semibold text-gray-900">
                       {track.title || `Трек ${track.id.slice(0, 8)}`}
                     </h3>
-                    <p className="text-sm text-gray-600">
-                      Статус: {getTrackStatusText(track.status)}
-                    </p>
                     {track.created_at && (
                       <p className="text-sm text-gray-500">
                         Загружен: {new Date(track.created_at).toLocaleDateString('ru-RU')}
                       </p>
                     )}
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    track.status === 'ready' ? 'bg-green-100 text-green-800' :
-                    track.status === 'ready_for_review' ? 'bg-blue-100 text-blue-800' :
-                    track.status === 'revision_requested' ? 'bg-orange-100 text-orange-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {getTrackStatusText(track.status)}
-                  </span>
                 </div>
 
                 {/* Аудиоплеер - показываем если есть аудио */}
@@ -395,7 +439,7 @@ const ProducerOrderDetailPage = () => {
 
                 {/* Действия для трека */}
                   <div className="mt-3 flex gap-2">
-                    {track.status === 'ready' && order.status === 'in_progress' && (
+                    {order.status === 'in_progress' && (
                       <button
                         onClick={() => handleMarkAsReady(track.id)}
                         className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
@@ -403,7 +447,7 @@ const ProducerOrderDetailPage = () => {
                         Отправить на проверку
                       </button>
                     )}
-                  {track.status === 'revision_requested' && (
+                  {track.is_preview && (
                     <button
                       onClick={() => navigate(`/producer/tracks/${track.id}/edit`)}
                       className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700"

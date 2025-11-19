@@ -3,21 +3,24 @@ import { useParams, Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrder, requestRevision } from '@/api/orders'
 import { createPayment } from '@/api/payments'
+import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { OrderDetail } from '@/types/order'
 
 const OrderDetailPage = () => {
   const { orderId } = useParams<{ orderId: string }>()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
   const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [revisionComment, setRevisionComment] = useState('')
   const [processing, setProcessing] = useState(false)
+  const [revisionComments, setRevisionComments] = useState<RevisionComment[]>([])
 
   useEffect(() => {
     if (isAuthenticated && orderId) {
       loadOrder()
+      loadRevisionComments()
     }
   }, [isAuthenticated, orderId])
 
@@ -34,6 +37,14 @@ const OrderDetailPage = () => {
     }
   }
 
+  const loadRevisionComments = async () => {
+    try {
+      const comments = await getRevisionComments(orderId!)
+      setRevisionComments(comments)
+    } catch (error) {
+      console.error('Ошибка при загрузке комментариев:', error)
+    }
+  }
   // Функции для работы с треками
   const getTrackAudioUrl = (track: any) => {
     if (track.audio_filename) {
@@ -57,6 +68,7 @@ const OrderDetailPage = () => {
     try {
       await requestRevision(orderId!, revisionComment)
       await loadOrder()
+      await loadRevisionComments()
       setShowRevisionModal(false)
       setRevisionComment('')
       alert('Правка запрошена успешно!')
@@ -66,6 +78,18 @@ const OrderDetailPage = () => {
     } finally {
       setProcessing(false)
     }
+  }
+  const getGroupedRevisionComments = () => {
+    const grouped: { [key: number]: RevisionComment[] } = {}
+    
+    revisionComments.forEach(comment => {
+      if (!grouped[comment.revision_number]) {
+        grouped[comment.revision_number] = []
+      }
+      grouped[comment.revision_number].push(comment)
+    })
+    
+    return grouped
   }
 
   const handleCreatePayment = async () => {
@@ -282,7 +306,52 @@ const OrderDetailPage = () => {
           </p>
         </div>
       )}
-
+      {/* секция истории правок */}
+      {revisionComments.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">История ваших правок</h2>
+          <div className="space-y-4">
+            {Object.entries(getGroupedRevisionComments())
+              .sort(([a], [b]) => parseInt(b) - parseInt(a))
+              .map(([revisionNumber, comments]) => (
+                <div key={revisionNumber} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
+                      Правка #{revisionNumber}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {new Date(comments[0].created_at).toLocaleDateString('ru-RU')}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {comments.map((comment) => (
+                      <div key={comment.id} className={`rounded-lg p-3 ${
+                        comment.user_id === user?.id ? 'bg-blue-50' : 'bg-gray-50'
+                      }`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <span className={`text-sm font-medium ${
+                            comment.user_id === user?.id ? 'text-blue-800' : 'text-gray-800'
+                          }`}>
+                            {comment.user_id === user?.id ? 'Вы' : 'Продюсер'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(comment.created_at).toLocaleTimeString('ru-RU')}
+                          </span>
+                        </div>
+                        <p className={`text-sm ${
+                          comment.user_id === user?.id ? 'text-blue-700' : 'text-gray-700'
+                        } whitespace-pre-wrap`}>
+                          {comment.comment}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
       {/* Модальное окно для запроса правки */}
       {showRevisionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
