@@ -364,3 +364,71 @@ async def _save_full_audio_file(audio_file: UploadFile) -> dict:
     except Exception as e:
         print(f"❌ Error saving full audio file: {str(e)}")
         raise Exception(f"Ошибка при сохранении аудио файла: {str(e)}")
+    
+@router.post("/orders/{order_id}/add-comment")
+async def add_producer_comment(
+    order_id: UUID,
+    comment_data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Добавить комментарий от продюсера
+    """
+    try:
+        comment = comment_data.get("comment", "").strip()
+        if not comment:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Комментарий не может быть пустым"
+            )
+        
+        # Проверяем заказ
+        order = await crud_order.get(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        # Проверяем что пользователь продюсер этого заказа
+        if order.producer_id != current_user.id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Нет доступа к заказу")
+        
+        # Получаем номер текущей правки
+        from app.crud.revision import crud_revision_comment
+        revision_number = await crud_revision_comment.get_last_revision_number(db, order_id)
+        
+        if revision_number == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нет активных правок для комментирования"
+            )
+        
+        # Сохраняем комментарий
+        from app.schemas.revision import RevisionCommentCreate
+        comment_create = RevisionCommentCreate(
+            order_id=order_id,
+            comment=comment
+        )
+        
+        new_comment = await crud_revision_comment.create(
+            db, comment_create, current_user.id, revision_number
+        )
+        
+        return {
+            "message": "Комментарий добавлен",
+            "comment": {
+                "id": new_comment.id,
+                "comment": new_comment.comment,
+                "revision_number": new_comment.revision_number,
+                "created_at": new_comment.created_at,
+                "user_name": current_user.name,
+                "user_email": current_user.email
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при добавлении комментария: {str(e)}"
+        )

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrder } from '@/api/orders'
-import { updateOrderStatus, uploadTrack, updateTrack } from '@/api/producer'
+import { updateOrderStatus, uploadTrack, updateTrack, addProducerComment } from '@/api/producer'
 import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { OrderDetail } from '@/types/order'
@@ -19,6 +19,9 @@ const ProducerOrderDetailPage = () => {
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [newTrackTitle, setNewTrackTitle] = useState('')
   const [revisionComments, setRevisionComments] = useState<RevisionComment[]>([])
+  const [showCommentForm, setShowCommentForm] = useState(false)
+  const [newComment, setNewComment] = useState('')
+  const [addingComment, setAddingComment] = useState(false)
   
   useEffect(() => {
     if (isAuthenticated && orderId) {
@@ -44,6 +47,27 @@ const ProducerOrderDetailPage = () => {
       setRevisionComments(comments)
     } catch (error) {
       console.error('Ошибка при загрузке комментариев:', error)
+    }
+  }
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) {
+      alert('Пожалуйста, введите комментарий')
+      return
+    }
+
+    setAddingComment(true)
+    try {
+      await addProducerComment(orderId!, newComment)
+      await loadRevisionComments() // Обновляем комментарии
+      setNewComment('')
+      setShowCommentForm(false)
+      alert('Комментарий добавлен!')
+    } catch (error: any) {
+      console.error('Ошибка при добавлении комментария:', error)
+      alert(error.message || 'Ошибка при добавлении комментария')
+    } finally {
+      setAddingComment(false)
     }
   }
 
@@ -116,6 +140,12 @@ const ProducerOrderDetailPage = () => {
     return track.preview_url || track.full_url || ''
   }
 
+  const getLastRevisionNumber = () => {
+    if (revisionComments.length === 0) return 0
+    return Math.max(...revisionComments.map(comment => comment.revision_number))
+  }  
+
+  const hasActiveRevision = getLastRevisionNumber() > 0
 
 
   const getGroupedRevisionComments = () => {
@@ -355,12 +385,56 @@ const ProducerOrderDetailPage = () => {
         </div>
       )}
       {/* КОММЕНТАРИИ ПРАВОК */}
-      {revisionComments.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">История правок и комментарии</h2>
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">История правок и комментарии</h2>
+          {/* Кнопка добавления комментария */}
+          {hasActiveRevision && (
+            <button
+              onClick={() => setShowCommentForm(!showCommentForm)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+            >
+              {showCommentForm ? 'Отмена' : '+ Добавить комментарий'}
+            </button>
+          )}
+        </div>
+
+        {/* Форма добавления комментария */}
+        {showCommentForm && (
+          <div className="mb-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
+            <h3 className="font-medium text-blue-800 mb-3">Добавить комментарий к правке #{getLastRevisionNumber()}</h3>
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Напишите ваш комментарий или уточнение по правке..."
+              className="w-full border border-blue-300 rounded-lg p-3 mb-3 h-32 resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleAddComment}
+                disabled={addingComment || !newComment.trim()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {addingComment ? 'Отправка...' : 'Отправить комментарий'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowCommentForm(false)
+                  setNewComment('')
+                }}
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Список комментариев */}
+        {revisionComments.length > 0 ? (
           <div className="space-y-6">
             {Object.entries(getGroupedRevisionComments())
-              .sort(([a], [b]) => parseInt(b) - parseInt(a)) // Сортируем по убыванию номера правки
+              .sort(([a], [b]) => parseInt(b) - parseInt(a))
               .map(([revisionNumber, comments]) => (
                 <div key={revisionNumber} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -370,15 +444,31 @@ const ProducerOrderDetailPage = () => {
                     <span className="text-sm text-gray-500">
                       {new Date(comments[0].created_at).toLocaleDateString('ru-RU')}
                     </span>
+                    {parseInt(revisionNumber) === getLastRevisionNumber() && (
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                        Активная
+                      </span>
+                    )}
                   </div>
                   
                   <div className="space-y-3">
                     {comments.map((comment) => (
-                      <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                      <div key={comment.id} className={`rounded-lg p-3 ${
+                        comment.user_id === user?.id ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                      }`}>
                         <div className="flex justify-between items-start mb-2">
-                          <span className="font-medium text-gray-900">
-                            {comment.user_name || 'Пользователь'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-medium ${
+                              comment.user_id === user?.id ? 'text-blue-800' : 'text-gray-800'
+                            }`}>
+                              {comment.user_name || 'Пользователь'}
+                            </span>
+                            {comment.user_id === user?.id && (
+                              <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs">
+                                Вы
+                              </span>
+                            )}
+                          </div>
                           <span className="text-sm text-gray-500">
                             {new Date(comment.created_at).toLocaleTimeString('ru-RU', { 
                               hour: '2-digit', 
@@ -386,15 +476,24 @@ const ProducerOrderDetailPage = () => {
                             })}
                           </span>
                         </div>
-                        <p className="text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                        <p className={`${
+                          comment.user_id === user?.id ? 'text-blue-700' : 'text-gray-700'
+                        } whitespace-pre-wrap`}>
+                          {comment.comment}
+                        </p>
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>Пока нет комментариев по правкам</p>
+            <p className="text-sm mt-1">Комментарии появятся здесь после запросов правок от клиента</p>
+          </div>
+        )}
+      </div>
       {/* Секция с треками */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-4">
@@ -436,54 +535,7 @@ const ProducerOrderDetailPage = () => {
                     </audio>
                   </div>
                 )}
-
-                {/* Действия для трека */}
-                  <div className="mt-3 flex gap-2">
-                    {order.status === 'in_progress' && (
-                      <button
-                        onClick={() => handleMarkAsReady(track.id)}
-                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                      >
-                        Отправить на проверку
-                      </button>
-                    )}
-                  {track.is_preview && (
-                    <button
-                      onClick={() => navigate(`/producer/tracks/${track.id}/edit`)}
-                      className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700"
-                    >
-                      Выполнить доработку
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => navigate(`/producer/tracks/${track.id}`)}
-                    className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700"
-                  >
-                    Детали
-                  </button>
                 </div>
-
-                {/* Временно убираем историю доработок - добавим позже */}
-                {/* {track.revision_history && track.revision_history.length > 0 && (
-                  <div className="mt-3 pt-3 border-t">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">История доработок</h4>
-                    <div className="space-y-2 text-sm">
-                      {track.revision_history.map((revision: any, index: number) => (
-                        <div key={index} className="bg-gray-50 p-2 rounded">
-                          <p className="font-medium">Версия {index + 1}</p>
-                          {revision.comment && (
-                            <p className="text-gray-600">Комментарий: {revision.comment}</p>
-                          )}
-                          <p className="text-gray-500 text-xs">
-                            {new Date(revision.date).toLocaleDateString('ru-RU')}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )} */}
-              </div>
             ))}
           </div>
         ) : (

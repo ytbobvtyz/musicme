@@ -1,4 +1,5 @@
 import { Order } from '@/types/order'
+import apiClient from './client'
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token')
@@ -70,4 +71,14 @@ export const updateTrack = async (trackId: string, updateData: any) => {
   }
   
   return response.json()
+}
+
+export const addProducerComment = async (orderId: string, comment: string) => {
+  try {
+    const response = await apiClient.post(`/producer/orders/${orderId}/add-comment`, { comment })
+    return response.data
+  } catch (error: any) {
+    console.error('🔍 Add producer comment error:', error.response?.data)
+    throw new Error(error.response?.data?.detail || 'Ошибка добавления комментария')
+  }
 }
