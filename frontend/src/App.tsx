@@ -13,6 +13,7 @@ import { useAuthStore } from './store/authStore'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import ProducerPage from '@/pages/ProducerPage'
 import ProducerOrderDetailPage from '@/pages/ProducerOrderDetailPage'
+import ManualPaymentPage from './pages/ManualPaymentPage'
 
 function App() {
   const { setToken } = useAuthStore()
@@ -56,6 +57,7 @@ function App() {
           <Route path="/producer/orders/:orderId" element={<ProducerOrderDetailPage />} />
           <Route path="/order/success" element={<OrderSuccessPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/orders/:orderId/payment" element={<ManualPaymentPage />} />
         </Routes>
       </Layout>
     </Router>

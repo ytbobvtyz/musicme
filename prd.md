@@ -277,3 +277,8 @@ DRAFT → WAITING_INTERVIEW → IN_PROGRESS → READY_FOR_REVIEW ↔ IN_PROGRESS
 DRAFT → WAITING_INTERVIEW → IN_PROGRESS → READY_FOR_REVIEW ↔ IN_PROGRESS → READY → COMPLETED
                              ↑                              ↓
                              └── пользователь запросил правку ─┘
+
+
+READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COMPLETED
+                                     ↑
+                                     └─── REVISION_REQUESTED

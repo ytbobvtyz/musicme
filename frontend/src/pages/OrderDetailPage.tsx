@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrder, requestRevision } from '@/api/orders'
 import { createPayment } from '@/api/payments'
 import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { OrderDetail } from '@/types/order'
+import PaymentFAQ from '@/components/PaymentFAQ'
 
 const OrderDetailPage = () => {
+  const navigate = useNavigate()
   const { orderId } = useParams<{ orderId: string }>()
   const { isAuthenticated, user } = useAuthStore()
   const [order, setOrder] = useState<OrderDetail | null>(null)
@@ -16,6 +18,7 @@ const OrderDetailPage = () => {
   const [revisionComment, setRevisionComment] = useState('')
   const [processing, setProcessing] = useState(false)
   const [revisionComments, setRevisionComments] = useState<RevisionComment[]>([])
+  const [showFAQ, setShowFAQ] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated && orderId) {
@@ -94,18 +97,8 @@ const OrderDetailPage = () => {
 
   const handleCreatePayment = async () => {
     if (!orderId) return
-
-    setProcessing(true)
-    try {
-      const result = await createPayment(orderId)
-      // Редирект на страницу оплаты ЮKassa
-      window.location.href = result.payment_url
-    } catch (error: any) {
-      console.error('Ошибка при создании платежа:', error)
-      alert(error.message || 'Ошибка при создании платежа')
-    } finally {
-      setProcessing(false)
-    }
+    // Переходим на страницу ручной оплаты
+    navigate(`/orders/${orderId}/payment`)
   }
 
   // Функции для работы с объектами
@@ -414,13 +407,22 @@ const OrderDetailPage = () => {
 
           {/* Оплата */}
           {order.status === 'ready_for_review' && (
-            <button
-              onClick={handleCreatePayment}
-              disabled={processing}
-              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              {processing ? 'Обработка...' : `Оплатить ${order.price} ₽`}
-            </button>
+            <>
+              <button
+                onClick={handleCreatePayment}
+                disabled={processing}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {processing ? 'Обработка...' : `Оплатить ${order.price} ₽`}
+              </button>
+              
+              <button
+                onClick={() => setShowFAQ(true)}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              >
+                ❓ Что будет после оплаты?
+              </button>
+            </>
           )}
 
           {/* Интервью */}
@@ -457,6 +459,7 @@ const OrderDetailPage = () => {
           </div>
         )}
       </div>
+      <PaymentFAQ isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
     </div>
   )
 }
