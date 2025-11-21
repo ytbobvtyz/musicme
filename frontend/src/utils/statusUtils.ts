@@ -3,12 +3,13 @@ export const ORDER_STATUSES = {
     draft: 'Черновик',
     waiting_interview: 'Ожидает интервью', 
     in_progress: 'В работе',
-    ready_for_review: 'Готов для проверки', // ⬅️ ДОБАВЛЯЕМ
-    ready: 'Готов',
+    ready_for_review: 'Готов для проверки',
+    payment_pending: 'Ожидает проверки оплаты', // ⬅️ НОВЫЙ
     paid: 'Оплачен',
+    ready_for_final_review: 'Готов для финальной проверки', // ⬅️ НОВЫЙ
     completed: 'Завершен',
     cancelled: 'Отменен',
-    revision_requested: 'Требует доработки' // ⬅️ ДОБАВЛЯЕМ
+    revision_requested: 'Требует доработки'
   } as const
   
   // Типы для TypeScript
@@ -28,12 +29,13 @@ export const ORDER_STATUSES = {
       completed: 'bg-green-100 text-green-800',
       in_progress: 'bg-blue-100 text-blue-800',
       waiting_interview: 'bg-yellow-100 text-yellow-800',
-      ready_for_review: 'bg-purple-100 text-purple-800', // ⬅️ ДОБАВЛЯЕМ
-      ready: 'bg-purple-100 text-purple-800',
+      ready_for_review: 'bg-purple-100 text-purple-800',
+      payment_pending: 'bg-orange-100 text-orange-800', // ⬅️ НОВЫЙ
       paid: 'bg-indigo-100 text-indigo-800',
+      ready_for_final_review: 'bg-pink-100 text-pink-800', // ⬅️ НОВЫЙ
       draft: 'bg-gray-100 text-gray-800',
       cancelled: 'bg-red-100 text-red-800',
-      revision_requested: 'bg-orange-100 text-orange-800' // ⬅️ ДОБАВЛЯЕМ
+      revision_requested: 'bg-orange-100 text-orange-800'
     }
     
     return `${baseClasses} ${statusClassMap[status] || 'bg-gray-100 text-gray-800'}`

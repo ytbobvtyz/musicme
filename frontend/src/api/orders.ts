@@ -1,5 +1,6 @@
 // src/api/orders.ts - добавляем новые методы
 import { OrderCreate } from '@/types/order'
+import apiClient from './client'
 
 // Используем fetch напрямую для лучшего контроля
 const getAuthHeaders = (): HeadersInit => {
@@ -103,4 +104,33 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
   }
   
   return response.json()
+}
+
+export const confirmPayment = async (orderId: string) => {
+  try {
+    const response = await apiClient.post(`/orders/${orderId}/confirm-payment`)
+    return response.data
+  } catch (error: any) {
+    console.error('🔍 Confirm payment error:', error.response?.data)
+    throw new Error(error.response?.data?.detail || 'Ошибка подтверждения оплаты')
+  }
+}
+export const finalApprove = async (orderId: string) => {
+  try {
+    const response = await apiClient.post(`/orders/${orderId}/final-approve`)
+    return response.data
+  } catch (error: any) {
+    console.error('🔍 Final approve error:', error.response?.data)
+    throw new Error(error.response?.data?.detail || 'Ошибка подтверждения заказа')
+  }
+}
+
+export const requestFinalRevision = async (orderId: string, comment: string) => {
+  try {
+    const response = await apiClient.post(`/orders/${orderId}/final-revision`, { comment })
+    return response.data
+  } catch (error: any) {
+    console.error('🔍 Final revision error:', error.response?.data)
+    throw new Error(error.response?.data?.detail || 'Ошибка запроса финальной правки')
+  }
 }

@@ -1,21 +1,30 @@
+// src/pages/OrderDetailPage.tsx
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
-import { getOrder, requestRevision } from '@/api/orders'
+import { 
+  getOrder, 
+  requestRevision, 
+  confirmPayment,
+  finalApprove,
+  requestFinalRevision 
+} from '@/api/orders'
 import { createPayment } from '@/api/payments'
 import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
-import { OrderDetail } from '@/types/order'
 import PaymentFAQ from '@/components/PaymentFAQ'
+import { OrderDetail } from '@/types/order'
 
 const OrderDetailPage = () => {
-  const navigate = useNavigate()
   const { orderId } = useParams<{ orderId: string }>()
   const { isAuthenticated, user } = useAuthStore()
+  const navigate = useNavigate()
   const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [showRevisionModal, setShowRevisionModal] = useState(false)
+  const [showFinalRevisionModal, setShowFinalRevisionModal] = useState(false) // ⬅️ НОВЫЙ
   const [revisionComment, setRevisionComment] = useState('')
+  const [finalRevisionComment, setFinalRevisionComment] = useState('') // ⬅️ НОВЫЙ
   const [processing, setProcessing] = useState(false)
   const [revisionComments, setRevisionComments] = useState<RevisionComment[]>([])
   const [showFAQ, setShowFAQ] = useState(false)
@@ -30,8 +39,6 @@ const OrderDetailPage = () => {
   const loadOrder = async () => {
     try {
       const data = await getOrder(orderId!)
-      console.log('📦 Получен заказ:', data)
-      console.log('🎵 Треки заказа:', data.tracks)
       setOrder(data)
     } catch (error) {
       console.error('Ошибка при загрузке заказа:', error)
@@ -48,6 +55,7 @@ const OrderDetailPage = () => {
       console.error('Ошибка при загрузке комментариев:', error)
     }
   }
+
   // Функции для работы с треками
   const getTrackAudioUrl = (track: any) => {
     if (track.audio_filename) {
@@ -56,11 +64,11 @@ const OrderDetailPage = () => {
     return track.preview_url || track.full_url
   }
 
-  // Функция для проверки доступности аудио
   const hasAudio = (track: any) => {
     return track.audio_filename || track.preview_url || track.full_url
   }
 
+  // ⬇️⬇️⬇️ СУЩЕСТВУЮЩИЕ ФУНКЦИИ ПРАВОК ⬇️⬇️⬇️
   const handleRequestRevision = async () => {
     if (!revisionComment.trim()) {
       alert('Пожалуйста, укажите комментарий к правке')
@@ -82,17 +90,46 @@ const OrderDetailPage = () => {
       setProcessing(false)
     }
   }
-  const getGroupedRevisionComments = () => {
-    const grouped: { [key: number]: RevisionComment[] } = {}
-    
-    revisionComments.forEach(comment => {
-      if (!grouped[comment.revision_number]) {
-        grouped[comment.revision_number] = []
-      }
-      grouped[comment.revision_number].push(comment)
-    })
-    
-    return grouped
+
+  // ⬇️⬇️⬇️ НОВЫЕ ФУНКЦИИ ДЛЯ ФИНАЛЬНОГО ОТЗЫВА ⬇️⬇️⬇️
+  const handleFinalApprove = async () => {
+    if (!window.confirm('Вы уверены, что всё отлично и правки не нужны?')) {
+      return
+    }
+
+    setProcessing(true)
+    try {
+      await finalApprove(orderId!)
+      await loadOrder()
+      alert('Спасибо за заказ! Трек полностью ваш!')
+    } catch (error: any) {
+      console.error('Ошибка при подтверждении:', error)
+      alert(error.message || 'Ошибка подтверждения')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleFinalRevision = async () => {
+    if (!finalRevisionComment.trim()) {
+      alert('Пожалуйста, опишите что нужно исправить')
+      return
+    }
+
+    setProcessing(true)
+    try {
+      await requestFinalRevision(orderId!, finalRevisionComment)
+      await loadOrder()
+      await loadRevisionComments()
+      setShowFinalRevisionModal(false)
+      setFinalRevisionComment('')
+      alert('Финальная правка отправлена продюсеру!')
+    } catch (error: any) {
+      console.error('Ошибка при запросе финальной правки:', error)
+      alert(error.message || 'Ошибка запроса правки')
+    } finally {
+      setProcessing(false)
+    }
   }
 
   const handleCreatePayment = async () => {
@@ -110,8 +147,23 @@ const OrderDetailPage = () => {
     return genreObj?.name || 'Неизвестно'
   }
 
-  // Проверка доступности правок
+  // Вспомогательные функции
+  const getGroupedRevisionComments = () => {
+    const grouped: { [key: number]: RevisionComment[] } = {}
+    
+    revisionComments.forEach(comment => {
+      if (!grouped[comment.revision_number]) {
+        grouped[comment.revision_number] = []
+      }
+      grouped[comment.revision_number].push(comment)
+    })
+    
+    return grouped
+  }
+
   const canRequestRevision = order && order.rounds_remaining > 0
+  const hasPreviewTracks = order?.tracks?.some((track: any) => track.is_preview)
+  const hasFinalTracks = order?.tracks?.some((track: any) => !track.is_preview)
 
   if (!isAuthenticated) {
     return (
@@ -158,6 +210,26 @@ const OrderDetailPage = () => {
           {getStatusText(order.status)}
         </div>
       </div>
+
+      {/* ⬇️⬇️⬇️ НОВЫЙ БЛОК - СТАТУС ОПЛАТЫ ⬇️⬇️⬇️ */}
+      {order.status === 'payment_pending' && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="bg-orange-100 p-2 rounded-full">
+              <span className="text-orange-600 text-xl">⏳</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-orange-800">Ожидаем проверку оплаты</h3>
+              <p className="text-orange-700">
+                Мы проверим поступление платежа и выложим полную версию в течение 24 часов
+              </p>
+            </div>
+          </div>
+          <div className="text-sm text-orange-600">
+            <p>Обычно это происходит быстрее! Следите за обновлениями на этой странице.</p>
+          </div>
+        </div>
+      )}
 
       {/* Основная информация */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -226,10 +298,25 @@ const OrderDetailPage = () => {
         </div>
       )}
 
-      {/* Секция с треками */}
+      {/* ⬇️⬇️⬇️ ОБНОВЛЕННАЯ СЕКЦИЯ С ТРЕКАМИ ⬇️⬇️⬇️ */}
       {order.tracks && order.tracks.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Треки заказа</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Треки заказа</h2>
+            <div className="flex gap-2">
+              {hasPreviewTracks && (
+                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
+                  🎵 Превью
+                </span>
+              )}
+              {hasFinalTracks && (
+                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                  ✅ Полная версия
+                </span>
+              )}
+            </div>
+          </div>
+          
           <div className="space-y-4">
             {order.tracks.map((track) => (
               <div key={track.id} className="border border-gray-200 rounded-lg p-4">
@@ -243,17 +330,15 @@ const OrderDetailPage = () => {
                         Длительность: {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, '0')}
                       </p>
                     )}
-                    {/* Показываем тип трека */}
                     {track.is_preview ? (
                       <p className="text-sm text-purple-600">🎵 Превью версия (60 сек)</p>
                     ) : (
                       <p className="text-sm text-green-600">✅ Полная версия</p>
                     )}
                   </div>
-                  {/* УДАЛЯЕМ статус трека */}
                 </div>
 
-                {/* Аудиоплеер - показываем всегда если есть аудио */}
+                {/* Аудиоплеер */}
                 {hasAudio(track) && (
                   <div className="mt-3">
                     <audio 
@@ -266,22 +351,6 @@ const OrderDetailPage = () => {
                       />
                       Ваш браузер не поддерживает аудио элементы.
                     </audio>
-                    
-                    {/* Информация о доступности */}
-                    {track.is_preview && order.status === 'ready_for_review' && (
-                      <p className="text-sm text-blue-600 mt-2">
-                        ⏱️ Доступно для прослушивания 60 секунд
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Сообщение если аудио нет */}
-                {!hasAudio(track) && (
-                  <div className="mt-3 p-3 bg-yellow-50 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                      Аудиофайл еще не загружен
-                    </p>
                   </div>
                 )}
               </div>
@@ -291,15 +360,61 @@ const OrderDetailPage = () => {
       )}
 
       {/* Сообщение если треков нет */}
-      {order.tracks && order.tracks.length === 0 && (
+      {(!order.tracks || order.tracks.length === 0) && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Треки заказа</h2>
           <p className="text-gray-600 text-center py-4">
-            Треки еще не созданы. Мы уведомим вас, когда они появятся.
+            {order.status === 'payment_pending' 
+              ? 'Трек готовится после подтверждения оплаты...' 
+              : 'Треки еще не созданы. Мы уведомим вас, когда они появятся.'
+            }
           </p>
         </div>
       )}
-      {/* секция истории правок */}
+
+      {/* ⬇️⬇️⬇️ НОВЫЙ БЛОК - ФИНАЛЬНЫЙ ОТЗЫВ ⬇️⬇️⬇️ */}
+      {order.status === 'ready_for_final_review' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-yellow-100 p-2 rounded-full">
+              <span className="text-yellow-600 text-xl">🎧</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-800">Финальный отзыв</h3>
+              <p className="text-yellow-700">
+                Прослушайте полную версию и оставьте финальный отзыв
+              </p>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <p className="text-sm text-yellow-700">
+              <strong>Важно:</strong> После подтверждения заказ будет завершен и правки будут недоступны
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setShowFinalRevisionModal(true)}
+                className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2"
+              >
+                <span>🛠️</span>
+                <span>Хочу финальную правку</span>
+              </button>
+              
+              <button
+                onClick={handleFinalApprove}
+                disabled={processing}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <span>✅</span>
+                <span>Всё супер, спасибо!</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* История комментариев */}
       {revisionComments.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">История ваших правок</h2>
@@ -345,7 +460,9 @@ const OrderDetailPage = () => {
           </div>
         </div>
       )}
-      {/* Модальное окно для запроса правки */}
+
+      {/* Модальные окна */}
+      {/* Существующее модальное окно для правок */}
       {showRevisionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
@@ -381,11 +498,50 @@ const OrderDetailPage = () => {
         </div>
       )}
 
+      {/* ⬇️⬇️⬇️ НОВОЕ МОДАЛЬНОЕ ОКНО ДЛЯ ФИНАЛЬНОЙ ПРАВКИ ⬇️⬇️⬇️ */}
+      {showFinalRevisionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">Финальная правка</h3>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-orange-800">
+                <strong>Обратите внимание:</strong> Это последняя возможность внести правки. 
+                После этого заказ будет завершен.
+              </p>
+            </div>
+            <textarea
+              value={finalRevisionComment}
+              onChange={(e) => setFinalRevisionComment(e.target.value)}
+              placeholder="Опишите, что именно нужно исправить в финальной версии..."
+              className="w-full border border-gray-300 rounded-lg p-3 mb-4 h-32 resize-none"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleFinalRevision}
+                disabled={processing || !finalRevisionComment.trim()}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 flex-1"
+              >
+                {processing ? 'Отправка...' : 'Запросить правку'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowFinalRevisionModal(false)
+                  setFinalRevisionComment('')
+                }}
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex-1"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Блок действий */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">Действия</h2>
         <div className="flex flex-wrap gap-4">
-          {/* Запрос правки */}
+          {/* Запрос правки для ready_for_review */}
           {order.status === 'ready_for_review' && (
             <>
               {canRequestRevision ? (
@@ -410,10 +566,9 @@ const OrderDetailPage = () => {
             <>
               <button
                 onClick={handleCreatePayment}
-                disabled={processing}
-                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
               >
-                {processing ? 'Обработка...' : `Оплатить ${order.price} ₽`}
+                💳 Оплатить {order.price} ₽
               </button>
               
               <button
@@ -423,6 +578,31 @@ const OrderDetailPage = () => {
                 ❓ Что будет после оплаты?
               </button>
             </>
+          )}
+
+          {/* Действия для других статусов */}
+          {order.status === 'payment_pending' && (
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <p className="text-blue-800">
+                Ожидаем проверку оплаты. Полная версия появится здесь после подтверждения.
+              </p>
+            </div>
+          )}
+
+          {order.status === 'ready_for_final_review' && (
+            <div className="bg-green-50 p-4 rounded-lg">
+              <p className="text-green-800">
+                Полная версия доступна! Оставьте финальный отзыв выше.
+              </p>
+            </div>
+          )}
+
+          {order.status === 'completed' && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-gray-800">
+                🎉 Заказ завершен! Спасибо, что выбрали нас!
+              </p>
+            </div>
           )}
 
           {/* Интервью */}
@@ -459,6 +639,8 @@ const OrderDetailPage = () => {
           </div>
         )}
       </div>
+
+      {/* Компонент с FAQ */}
       <PaymentFAQ isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
     </div>
   )

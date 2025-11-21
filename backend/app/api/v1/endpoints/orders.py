@@ -5,6 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 import logging
+from datetime import datetime, timezone
 
 from app.crud.order import crud_order
 from app.core.database import get_db
@@ -16,6 +17,7 @@ from app.models.tariff_plan import TariffPlan
 from app.services.order_service import order_service
 from app.services.order_status_service import order_status_service
 from app.crud.revision import crud_revision_comment
+from app.schemas.revision import RevisionCommentCreate
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -314,3 +316,100 @@ async def get_revision_comments(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при получении комментариев: {str(e)}"
         )
+    
+@router.post("/{order_id}/confirm-payment")
+async def confirm_payment(
+    order_id: UUID,
+    db = Depends(get_db),
+    current_user: UserSchema = Depends(get_current_user)
+):
+    """
+    Пользователь подтверждает что оплатил
+    """
+    try:
+        order = await crud_order.get_by_id(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        if order.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Нет доступа")
+        
+        if order.status != OrderStatus.READY_FOR_REVIEW:
+            raise HTTPException(
+                status_code=400,
+                detail="Нельзя подтвердить оплату для этого статуса"
+            )
+        
+        # Меняем статус на ожидание проверки оплаты
+        order.status = OrderStatus.PAYMENT_PENDING
+        order.payment_confirmed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        
+        await db.commit()
+        
+        # TODO: Уведомление продюсеру
+        # TODO: Уведомление админу о необходимости проверки оплаты
+        
+        return {
+            "message": "Отлично! Мы проверим оплату и в течение 24 часов (обычно быстрее!) выложим полный трек на вашу страницу!",
+            "status": order.status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Ошибка подтверждения оплаты")
+
+
+@router.post("/{order_id}/final-approve")
+async def final_approve(
+    order_id: UUID,
+    db = Depends(get_db),
+    current_user: UserSchema = Depends(get_current_user)
+):
+    """
+    Пользователь подтверждает что всё отлично
+    """
+    order = await crud_order.get_by_id(db, order_id)
+    # Проверки прав...
+    
+    order.status = OrderStatus.COMPLETED
+    order.completed_at = datetime.utcnow()
+    
+    await db.commit()
+    
+    return {"message": "Спасибо за заказ! Трек полностью ваш!"}
+
+@router.post("/{order_id}/final-revision")
+async def request_final_revision(
+    order_id: UUID,
+    revision_data: dict,
+    db = Depends(get_db),
+    current_user: UserSchema = Depends(get_current_user)
+):
+    """
+    Запрос финальной правки после оплаты
+    """
+    order = await crud_order.get_by_id(db, order_id)
+    # Проверки прав...
+    
+    comment = revision_data.get("comment", "")
+    
+    # Сохраняем комментарий финальной правки
+    from app.crud.revision import crud_revision_comment
+    revision_number = await crud_revision_comment.get_last_revision_number(db, order_id) + 1
+    
+    comment_data = RevisionCommentCreate(
+        order_id=order_id,
+        comment=f"ФИНАЛЬНАЯ ПРАВКА: {comment}"
+    )
+    await crud_revision_comment.create(db, comment_data, current_user.id, revision_number)
+    
+    # Возвращаем в работу
+    order.status = OrderStatus.IN_PROGRESS
+    
+    await db.commit()
+    
+    # TODO: Уведомление продюсеру
+    
+    return {"message": "Правка отправлена продюсеру!"}

@@ -22,7 +22,7 @@ from app.schemas.track import Track, TrackWithOrder, TrackAdminCreate, TrackSimp
 from app.schemas.example_track import ExampleTrack, ExampleTrackCreate, ExampleTrackUpdate
 from app.models.user import User as UserModel
 from app.models.track import Track as TrackModel  # ⬅️ ДОБАВЬ ЭТОТ ИМПОРТ
-from app.models.order import Order as OrderModel   # ⬅️ И ЭТОТ ТОЖЕ
+from app.models.order import Order as OrderModel, OrderStatus   # ⬅️ И ЭТОТ ТОЖЕ
 from app.crud.track import crud_track
 from app.crud.example_track import crud_example_track
 from app.core.file_storage import file_storage
@@ -601,10 +601,11 @@ async def get_producers(
             detail=f"Ошибка при получении продюсеров: {str(e)}"
         )
 
+
 @router.post("/orders/{order_id}/assign")
 async def assign_producer(
     order_id: UUID,
-    assignment_data: dict,
+    assign_data: dict,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_admin)
 ):
@@ -612,86 +613,105 @@ async def assign_producer(
     Назначить продюсера на заказ
     """
     try:
-        print(f"🔍 START: Assigning producer to order {order_id}")
-        print(f"🔍 Assignment data: {assignment_data}")
-        print(f"🔍 Current user: {current_user.id} ({current_user.email})")
-        
-        producer_id = assignment_data.get("producer_id")
+        producer_id = assign_data.get("producer_id")
         if not producer_id:
-            print("❌ ERROR: producer_id is missing")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="producer_id обязателен"
             )
         
-        print(f"🔍 Producer ID from request: {producer_id}")
+        print(f"🔍 Admin assigning producer {producer_id} to order {order_id}")
         
         # Получаем заказ
         order = await crud_order.get(db, order_id)
         if not order:
-            print(f"❌ ERROR: Order {order_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Заказ не найден"
             )
         
-        print(f"🔍 Found order: {order.id}")
-        print(f"🔍 Order current producer: {order.producer_id}")
-        print(f"🔍 Order current status: {order.status}")
-        print(f"🔍 Order tariff: {order.tariff_plan}")
-        
-        # Проверяем что пользователь является продюсером
-        print(f"🔍 Checking if user {producer_id} is producer...")
-        producer = await crud_user.get_by_producer_id(db, UUID(producer_id))
-        
-        if not producer:
-            print(f"❌ ERROR: User {producer_id} is not a producer or not found")
+        # Получаем продюсера
+        producer = await crud_user.get(db, UUID(producer_id))
+        if not producer or not producer.is_producer:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Пользователь не является продюсером"
             )
         
-        print(f"🔍 Found producer: {producer.id} - {producer.name} (is_producer: {producer.is_producer})")
-        
         # Назначаем продюсера
-        print(f"🔍 Assigning producer {producer.id} to order {order.id}")
-        order.producer_id = UUID(producer_id)
+        order.producer_id = producer.id
         
-        # Автоматически меняем статус в зависимости от тарифа
-        if order.tariff_plan == "premium":
-            order.status = "waiting_interview"
-            print("🔍 Status changed to: waiting_interview (premium tariff)")
-        else:
-            order.status = "in_progress" 
-            print("🔍 Status changed to: in_progress (basic/advanced tariff)")
+        # Автоматически меняем статус если заказ был готов для проверки
+        if order.status == OrderStatus.READY_FOR_REVIEW:
+            order.status = OrderStatus.IN_PROGRESS
+            print(f"🔍 Auto-changing status to IN_PROGRESS for order {order_id}")
         
-        print("🔍 Committing to database...")
         await db.commit()
         await db.refresh(order)
         
-        print(f"✅ SUCCESS: Producer {producer.name} assigned to order {order.id}")
-        print(f"✅ Order new status: {order.status}")
-        print(f"✅ Order new producer: {order.producer_id}")
+        # TODO: Отправить уведомление продюсеру
         
-        # ⬇️ ИСПРАВЛЯЕМ ВОЗВРАЩАЕМЫЙ ОТВЕТ
-        # Вместо полной валидации Order возвращаем простой ответ
+        print(f"✅ Producer {producer_id} assigned to order {order_id}")
+        
         return {
-            "id": str(order.id),
-            "status": order.status,
-            "producer_id": str(order.producer_id),
-            "tariff_plan": order.tariff_plan,
-            "message": "Продюсер успешно назначен"
+            "message": f"Продюсер {producer.name} назначен на заказ",
+            "order_id": str(order.id),
+            "producer_id": str(producer.id),
+            "status": order.status
         }
         
-    except HTTPException as he:
-        print(f"❌ HTTPException: {he.detail}")
-        raise he
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"❌ UNEXPECTED ERROR: {str(e)}")
-        print(f"❌ ERROR TYPE: {type(e).__name__}")
-        print(f"❌ TRACEBACK: {traceback.format_exc()}")
+        print(f"❌ Error assigning producer: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при назначении продюсера: {str(e)}"
+        )
+
+@router.post("/orders/{order_id}/confirm-payment-received")
+async def confirm_payment_received(
+    order_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_admin)
+):
+    """
+    Админ подтверждает что оплата получена (для ручной оплаты)
+    """
+    try:
+        order = await crud_order.get(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        if order.status != OrderStatus.PAYMENT_PENDING:
+            raise HTTPException(
+                status_code=400,
+                detail="Заказ не ожидает подтверждения оплаты"
+            )
+        
+        # Меняем статус на оплачен
+        order.status = OrderStatus.PAID
+        order.paid_at = datetime.utcnow()
+        
+        await db.commit()
+        
+        # TODO: Уведомление продюсеру что можно загружать финальный трек
+        # TODO: Уведомление пользователю что оплата подтверждена
+        
+        logger.info(f"Админ подтвердил оплату для заказа {order_id}")
+        
+        return {
+            "message": "Оплата подтверждена! Заказ переведен в статус 'Оплачен'",
+            "status": order.status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Ошибка подтверждения оплаты админом: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка подтверждения оплаты: {str(e)}"
         )

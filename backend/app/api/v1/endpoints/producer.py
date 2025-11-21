@@ -10,7 +10,7 @@ import traceback
 import logging
 import uuid
 import os
-
+from datetime import datetime, timezone
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_producer
 from app.models.user import User
@@ -431,4 +431,115 @@ async def add_producer_comment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при добавлении комментария: {str(e)}"
+        )
+
+@router.post("/orders/{order_id}/upload-final-track")
+async def upload_final_track(
+    order_id: UUID,
+    title: str = Form(...),
+    audio_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Загрузить финальный трек после оплаты
+    """
+    try:
+        order = await crud_order.get(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        # Проверяем что оплата подтверждена
+        if order.status != OrderStatus.PAYMENT_PENDING:
+            raise HTTPException(
+                status_code=400,
+                detail="Ожидается подтверждение оплаты перед загрузкой финального трека"
+            )
+        
+        # Проверяем права продюсера
+        if order.producer_id != current_user.id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Нет доступа")
+        
+        # Сохраняем полную версию (не превью!)
+        file_info = await _save_full_audio_file(audio_file)
+        
+        # Создаем запись трека
+        db_track = Track(
+            order_id=order_id,
+            title=title,
+            audio_filename=file_info["filename"],
+            audio_size=file_info["size"],
+            audio_mimetype=file_info["mimetype"],
+            is_preview=False  # ⬅️ Это полная версия!
+        )
+        
+        db.add(db_track)
+        
+        # Меняем статус заказа
+        order.status = OrderStatus.READY_FOR_FINAL_REVIEW
+        order.final_track_uploaded_at = datetime.utcnow()
+        
+        await db.commit()
+        
+        # TODO: Уведомление пользователю
+        
+        return {
+            "message": "Финальный трек загружен! Пользователь получит уведомление.",
+            "status": order.status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Ошибка загрузки трека")
+    
+@router.post("/orders/{order_id}/confirm-payment")
+async def producer_confirm_payment(
+    order_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_producer)
+):
+    """
+    Продюсер подтверждает что оплата получена (берет на себя ответственность)
+    """
+    try:
+        order = await crud_order.get(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        # Проверяем что заказ принадлежит текущему продюсеру
+        if order.producer_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к заказу")
+        
+        if order.status != OrderStatus.PAYMENT_PENDING:
+            raise HTTPException(
+                status_code=400,
+                detail="Заказ не ожидает подтверждения оплаты"
+            )
+        
+        # Меняем статус на оплачен
+        order.status = OrderStatus.PAID
+        order.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        # order.payment_confirmed_by = current_user.id  # Кто подтвердил
+        
+        await db.commit()
+        
+        # TODO: Уведомление пользователю что оплата подтверждена
+        
+        logger.info(f"Продюсер {current_user.id} подтвердил оплату для заказа {order_id}")
+        
+        return {
+            "message": "Оплата подтверждена! Теперь вы можете загрузить финальный трек",
+            "status": order.status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Ошибка подтверждения оплаты продюсером: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка подтверждения оплаты: {str(e)}"
         )

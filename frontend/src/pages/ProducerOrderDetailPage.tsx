@@ -3,7 +3,14 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getOrder } from '@/api/orders'
-import { updateOrderStatus, uploadTrack, updateTrack, addProducerComment } from '@/api/producer'
+import { 
+  updateOrderStatus, 
+  uploadTrack, 
+  updateTrack, 
+  addProducerComment,
+  producerConfirmPayment,
+  uploadFinalTrack
+} from '@/api/producer'
 import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { OrderDetail } from '@/types/order'
@@ -22,7 +29,8 @@ const ProducerOrderDetailPage = () => {
   const [showCommentForm, setShowCommentForm] = useState(false)
   const [newComment, setNewComment] = useState('')
   const [addingComment, setAddingComment] = useState(false)
-  
+  const [processing, setProcessing] = useState(false)
+
   useEffect(() => {
     if (isAuthenticated && orderId) {
       loadOrder()
@@ -47,27 +55,6 @@ const ProducerOrderDetailPage = () => {
       setRevisionComments(comments)
     } catch (error) {
       console.error('Ошибка при загрузке комментариев:', error)
-    }
-  }
-
-  const handleAddComment = async () => {
-    if (!newComment.trim()) {
-      alert('Пожалуйста, введите комментарий')
-      return
-    }
-
-    setAddingComment(true)
-    try {
-      await addProducerComment(orderId!, newComment)
-      await loadRevisionComments() // Обновляем комментарии
-      setNewComment('')
-      setShowCommentForm(false)
-      alert('Комментарий добавлен!')
-    } catch (error: any) {
-      console.error('Ошибка при добавлении комментария:', error)
-      alert(error.message || 'Ошибка при добавлении комментария')
-    } finally {
-      setAddingComment(false)
     }
   }
 
@@ -104,14 +91,41 @@ const ProducerOrderDetailPage = () => {
     }
   }
 
+  const handleUploadFinalTrack = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!orderId || !newTrackTitle.trim()) return
+  
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      const fileInput = document.getElementById('finalAudioFile') as HTMLInputElement
+      
+      if (!fileInput?.files?.[0]) {
+        alert('Пожалуйста, выберите аудиофайл')
+        return
+      }
+  
+      formData.append('audio_file', fileInput.files[0])
+      formData.append('title', newTrackTitle)
+      formData.append('order_id', orderId)
+  
+      await uploadFinalTrack(formData)
+      await loadOrder()
+      setShowUploadForm(false)
+      setNewTrackTitle('')
+      alert('Финальный трек успешно загружен! Пользователь получит уведомление.')
+    } catch (error) {
+      console.error('Ошибка при загрузке финального трека:', error)
+      alert('Ошибка при загрузке финального трека')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const handleMarkAsReady = async (trackId: string) => {
     try {
-      // Обновляем статус трека
       await updateTrack(trackId, { status: 'ready' })
-      
-      // Обновляем статус заказа на READY_FOR_REVIEW
       await updateOrderStatus(orderId!, 'ready_for_review')
-      
       await loadOrder()
       alert('Трек помечен как готовый для проверки клиентом')
     } catch (error) {
@@ -120,33 +134,63 @@ const ProducerOrderDetailPage = () => {
     }
   }
 
-  // Добавляем функцию для возврата в работу
-  const handleReturnToWork = async () => {
+  const handleAddComment = async () => {
+    if (!newComment.trim()) {
+      alert('Пожалуйста, введите комментарий')
+      return
+    }
+
+    setAddingComment(true)
     try {
-      await updateOrderStatus(orderId!, 'in_progress')
-      await loadOrder()
-      alert('Заказ возвращен в работу')
-    } catch (error) {
-      console.error('Ошибка при обновлении статуса:', error)
-      alert('Ошибка при обновлении статуса')
+      await addProducerComment(orderId!, newComment)
+      await loadRevisionComments()
+      setNewComment('')
+      setShowCommentForm(false)
+      alert('Комментарий добавлен!')
+    } catch (error: any) {
+      console.error('Ошибка при добавлении комментария:', error)
+      alert(error.message || 'Ошибка при добавлении комментария')
+    } finally {
+      setAddingComment(false)
     }
   }
 
-  const getTrackAudioUrl = (track: Track) => {
-    // Используем audio_filename если есть, иначе preview_url
+  const handleConfirmPayment = async () => {
+    if (!window.confirm('Вы уверены, что оплата получена? После подтверждения вы сможете загрузить финальный трек.')) {
+      return
+    }
+
+    setProcessing(true)
+    try {
+      const result = await producerConfirmPayment(orderId!)
+      await loadOrder()
+      alert(result.message)
+    } catch (error: any) {
+      console.error('Ошибка при подтверждении оплаты:', error)
+      alert(error.message || 'Ошибка подтверждения оплаты')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const getTrackAudioUrl = (track: any) => {
     if (track.audio_filename) {
       return `http://localhost:8000/api/v1/tracks/${track.id}/audio`
     }
-    return track.preview_url || track.full_url || ''
+    return track.preview_url || track.full_url
   }
 
-  const getLastRevisionNumber = () => {
-    if (revisionComments.length === 0) return 0
-    return Math.max(...revisionComments.map(comment => comment.revision_number))
-  }  
-
-  const hasActiveRevision = getLastRevisionNumber() > 0
-
+  const getTrackStatusText = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'generating': 'Генерируется',
+      'ready': 'Готов для проверки',
+      'ready_for_review': 'На проверке у клиента',
+      'revision_requested': 'Требует доработки',
+      'paid': 'Оплачен',
+      'completed': 'Завершен'
+    }
+    return statusMap[status] || status
+  }
 
   const getGroupedRevisionComments = () => {
     const grouped: { [key: number]: RevisionComment[] } = {}
@@ -161,12 +205,17 @@ const ProducerOrderDetailPage = () => {
     return grouped
   }
 
+  const getLastRevisionNumber = () => {
+    if (revisionComments.length === 0) return 0
+    return Math.max(...revisionComments.map(comment => comment.revision_number))
+  }
+
+  const hasActiveRevision = getLastRevisionNumber() > 0
+
   // Проверка доступа к заказу
   const hasAccessToOrder = () => {
     if (!order || !user) return false
-    // Админы имеют доступ ко всем заказам
     if (user.is_admin) return true
-    // Продюсеры имеют доступ только к своим заказам
     return order.producer_id === user.id
   }
 
@@ -197,7 +246,6 @@ const ProducerOrderDetailPage = () => {
     )
   }
 
-  // Проверяем доступ
   if (!hasAccessToOrder()) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
@@ -231,7 +279,7 @@ const ProducerOrderDetailPage = () => {
         
         {/* Действия для продюсера */}
         <div className="flex gap-3">
-          {order.status === 'in_progress' && (
+          {(order.status === 'in_progress' || order.status === 'paid') && (
             <button
               onClick={() => setShowUploadForm(true)}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
@@ -239,18 +287,44 @@ const ProducerOrderDetailPage = () => {
               + Загрузить трек
             </button>
           )}
-          
-          {/* ⬇️ ДОБАВЛЯЕМ КНОПКУ ДЛЯ РУЧНОГО ВОЗВРАТА В РАБОТУ */}
-          {order.status === 'ready_for_review' && (
-            <button
-              onClick={handleReturnToWork}
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
-            >
-              Вернуть в работу
-            </button>
-          )}
         </div>
       </div>
+
+      {/* Блок статуса оплаты */}
+      {order?.status === 'payment_pending' && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-orange-100 p-2 rounded-full">
+              <span className="text-orange-600 text-xl">💰</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-orange-800">
+                Пользователь заявил об оплате
+              </h3>
+              <p className="text-orange-700">
+                Клиент подтвердил, что перевел оплату. Проверьте поступление средств и подтвердите оплату.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button
+              onClick={handleConfirmPayment}
+              disabled={processing}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              <span>✅</span>
+              <span>Я убедился в оплате</span>
+            </button>
+            
+            <div className="bg-orange-100 p-3 rounded-lg flex-1">
+              <p className="text-sm text-orange-800">
+                <strong>Внимание:</strong> Подтверждая оплату, вы берете на себя ответственность за проверку поступления средств.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Основная информация */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -302,8 +376,10 @@ const ProducerOrderDetailPage = () => {
       {/* Форма загрузки трека */}
       {showUploadForm && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Загрузка нового трека</h3>
-          <form onSubmit={handleUploadTrack} className="space-y-4">
+          <h3 className="text-lg font-semibold mb-4">
+            {order?.status === 'paid' ? 'Загрузка финального трека' : 'Загрузка нового трека'}
+          </h3>
+          <form onSubmit={order?.status === 'paid' ? handleUploadFinalTrack : handleUploadTrack} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Название трека
@@ -313,56 +389,68 @@ const ProducerOrderDetailPage = () => {
                 value={newTrackTitle}
                 onChange={(e) => setNewTrackTitle(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                placeholder="Например: Поздравление для Марии"
+                placeholder={
+                  order?.status === 'paid' 
+                    ? "Например: Полная версия для Марии" 
+                    : "Например: Поздравление для Марии"
+                }
                 required
               />
             </div>
             
-            {/* Переключатель превью/полный трек */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Версия трека
-              </label>
-              <div className="flex gap-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="trackType"
-                    value="preview"
-                    defaultChecked={order?.status !== 'paid'}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">Превью (первые 60 секунд)</span>
+            {/* Переключатель превью/полный трек - только для НЕ оплаченных заказов */}
+            {order?.status !== 'paid' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Версия трека
                 </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="trackType"
-                    value="full"
-                    defaultChecked={order?.status === 'paid'}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">Полная версия</span>
-                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="trackType"
+                      value="preview"
+                      defaultChecked={order?.status !== 'paid'}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Превью (первые 60 секунд)</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="trackType"
+                      value="full"
+                      defaultChecked={order?.status === 'paid'}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Полная версия</span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {order?.status === 'paid' 
+                    ? 'Заказ оплачен - загружайте полную версию' 
+                    : 'Для неподтвержденных заказов рекомендуется загружать превью'
+                  }
+                </p>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {order?.status === 'paid' 
-                  ? 'Заказ оплачен - загружайте полную версию' 
-                  : 'Для неподтвержденных заказов рекомендуется загружать превью'}
-              </p>
-            </div>
+            )}
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Аудиофайл
               </label>
               <input
-                id="audioFile"
+                id={order?.status === 'paid' ? 'finalAudioFile' : 'audioFile'}
                 type="file"
                 accept="audio/*"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 required
               />
+              {order?.status === 'paid' && (
+                <p className="text-sm text-green-600 mt-1">
+                  ✅ Это финальная версия для клиента
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3">
@@ -371,7 +459,12 @@ const ProducerOrderDetailPage = () => {
                 disabled={uploading}
                 className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
-                {uploading ? 'Загрузка...' : 'Загрузить'}
+                {uploading 
+                  ? 'Загрузка...' 
+                  : order?.status === 'paid' 
+                    ? 'Загрузить финальный трек' 
+                    : 'Загрузить'
+                }
               </button>
               <button
                 type="button"
@@ -384,54 +477,54 @@ const ProducerOrderDetailPage = () => {
           </form>
         </div>
       )}
-      {/* КОММЕНТАРИИ ПРАВОК */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">История правок и комментарии</h2>
-          {/* Кнопка добавления комментария */}
-          {hasActiveRevision && (
-            <button
-              onClick={() => setShowCommentForm(!showCommentForm)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
-            >
-              {showCommentForm ? 'Отмена' : '+ Добавить комментарий'}
-            </button>
-          )}
-        </div>
 
-        {/* Форма добавления комментария */}
-        {showCommentForm && (
-          <div className="mb-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
-            <h3 className="font-medium text-blue-800 mb-3">Добавить комментарий к правке #{getLastRevisionNumber()}</h3>
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Напишите ваш комментарий или уточнение по правке..."
-              className="w-full border border-blue-300 rounded-lg p-3 mb-3 h-32 resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
-            <div className="flex gap-3">
+      {/* История комментариев */}
+      {revisionComments.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">История правок и комментарии</h2>
+            {hasActiveRevision && (
               <button
-                onClick={handleAddComment}
-                disabled={addingComment || !newComment.trim()}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                onClick={() => setShowCommentForm(!showCommentForm)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
               >
-                {addingComment ? 'Отправка...' : 'Отправить комментарий'}
+                {showCommentForm ? 'Отмена' : '+ Добавить комментарий'}
               </button>
-              <button
-                onClick={() => {
-                  setShowCommentForm(false)
-                  setNewComment('')
-                }}
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
-              >
-                Отмена
-              </button>
-            </div>
+            )}
           </div>
-        )}
 
-        {/* Список комментариев */}
-        {revisionComments.length > 0 ? (
+          {/* Форма добавления комментария */}
+          {showCommentForm && (
+            <div className="mb-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
+              <h3 className="font-medium text-blue-800 mb-3">Добавить комментарий к правке #{getLastRevisionNumber()}</h3>
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Напишите ваш комментарий или уточнение по правке..."
+                className="w-full border border-blue-300 rounded-lg p-3 mb-3 h-32 resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAddComment}
+                  disabled={addingComment || !newComment.trim()}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {addingComment ? 'Отправка...' : 'Отправить комментарий'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCommentForm(false)
+                    setNewComment('')
+                  }}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Список комментариев */}
           <div className="space-y-6">
             {Object.entries(getGroupedRevisionComments())
               .sort(([a], [b]) => parseInt(b) - parseInt(a))
@@ -487,13 +580,9 @@ const ProducerOrderDetailPage = () => {
                 </div>
               ))}
           </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            <p>Пока нет комментариев по правкам</p>
-            <p className="text-sm mt-1">Комментарии появятся здесь после запросов правок от клиента</p>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
+
       {/* Секция с треками */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-4">
@@ -512,15 +601,26 @@ const ProducerOrderDetailPage = () => {
                     <h3 className="font-semibold text-gray-900">
                       {track.title || `Трек ${track.id.slice(0, 8)}`}
                     </h3>
+                    <p className="text-sm text-gray-600">
+                      Статус: {getTrackStatusText(order.status)}
+                    </p>
                     {track.created_at && (
                       <p className="text-sm text-gray-500">
                         Загружен: {new Date(track.created_at).toLocaleDateString('ru-RU')}
                       </p>
                     )}
                   </div>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                    order.status === 'ready_for_review' ? 'bg-blue-100 text-blue-800' :
+                    order.status === 'revision_requested' ? 'bg-orange-100 text-orange-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {getTrackStatusText(order.status)}
+                  </span>
                 </div>
 
-                {/* Аудиоплеер - показываем если есть аудио */}
+                {/* Аудиоплеер */}
                 {(track.audio_filename || track.preview_url) && (
                   <div className="mt-3">
                     <audio 
@@ -535,7 +635,35 @@ const ProducerOrderDetailPage = () => {
                     </audio>
                   </div>
                 )}
+
+                {/* Действия для трека */}
+                <div className="mt-3 flex gap-2">
+                  {order.status === 'ready' && (
+                    <button
+                      onClick={() => handleMarkAsReady(track.id)}
+                      className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                    >
+                      Отправить на проверку
+                    </button>
+                  )}
+                  
+                  {order.status === 'revision_requested' && (
+                    <button
+                      onClick={() => navigate(`/producer/tracks/${track.id}/edit`)}
+                      className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700"
+                    >
+                      Выполнить доработку
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => navigate(`/producer/tracks/${track.id}`)}
+                    className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700"
+                  >
+                    Детали
+                  </button>
                 </div>
+              </div>
             ))}
           </div>
         ) : (

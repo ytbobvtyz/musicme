@@ -82,3 +82,27 @@ export const addProducerComment = async (orderId: string, comment: string) => {
     throw new Error(error.response?.data?.detail || 'Ошибка добавления комментария')
   }
 }
+
+export const producerConfirmPayment = async (orderId: string) => {
+  try {
+    const response = await apiClient.post(`/producer/orders/${orderId}/confirm-payment`)
+    return response.data
+  } catch (error: any) {
+    console.error('🔍 Producer confirm payment error:', error.response?.data)
+    throw new Error(error.response?.data?.detail || 'Ошибка подтверждения оплаты')
+  }
+}
+
+export const uploadFinalTrack = async (formData: FormData) => {
+  try {
+    const response = await apiClient.post('/producer/orders/upload-final-track', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response.data
+  } catch (error: any) {
+    console.error('🔍 Upload final track error:', error.response?.data)
+    throw new Error(error.response?.data?.detail || 'Ошибка загрузки финального трека')
+  }
+}

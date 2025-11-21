@@ -14,13 +14,13 @@ from app.models.tariff_plan import TariffPlan
 from app.core.database import Base
 
 class OrderStatus(str, Enum):
-    """Статусы заказа"""
     DRAFT = "draft"
     WAITING_INTERVIEW = "waiting_interview"
     IN_PROGRESS = "in_progress"
-    READY_FOR_REVIEW = "ready_for_review"  # ← preview готов
-    READY = "ready"
-    PAID = "paid"  # ← используем статус вместо is_paid
+    READY_FOR_REVIEW = "ready_for_review"
+    PAYMENT_PENDING = "payment_pending"  # ⬅️ НОВЫЙ
+    PAID = "paid"
+    READY_FOR_FINAL_REVIEW = "ready_for_final_review"  # ⬅️ НОВЫЙ
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
@@ -48,7 +48,7 @@ class Order(Base):
     rounds_remaining = Column(Integer, default=0, nullable=False)
     
     interview_link = Column(String, nullable=True)
-    
+    # payment_confirmed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     updated_at = Column(DateTime, default=datetime.now(timezone.utc).replace(tzinfo=None), onupdate=datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     

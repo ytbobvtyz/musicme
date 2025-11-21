@@ -47,11 +47,13 @@ export interface OrderDisplay {
   details?: string
   tariff_plan: string
   producer?: string
+  producer_id?: string  // ⬅️ ДОБАВЛЯЕМ ЭТО
   status: string
   deadline_at: string
   interview_link?: string
   created_at: string
   updated_at: string
+  price: number  // ⬅️ ДОБАВЛЯЕМ ЭТО
 }
 
 export interface OrderCreate {
