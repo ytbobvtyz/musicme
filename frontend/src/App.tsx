@@ -14,6 +14,59 @@ import AuthCallbackPage from './pages/AuthCallbackPage'
 import ProducerPage from '@/pages/ProducerPage'
 import ProducerOrderDetailPage from '@/pages/ProducerOrderDetailPage'
 import ManualPaymentPage from './pages/ManualPaymentPage'
+import TermsPage from './pages/TermsPage'
+import PrivacyPage from './pages/PrivacyPage'
+
+// СТАТИЧЕСКАЯ семантическая разметка - ОСОЗНАННЫЙ ВЫБОР ДЛЯ MVP
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": "MusicMe.ru",
+  "description": "Создание уникальных персонализированных песен-подарков на заказ",
+  "url": "https://musicme.ru",
+  "serviceType": "Музыкальные услуги",
+  "provider": {
+    "@type": "Organization",
+    "name": "MusicMe.ru"
+  },
+  "areaServed": "RU",
+  "hasOfferCatalog": {
+    "@type": "OfferCatalog",
+    "name": "Тарифы на создание песен",
+    "itemListElement": [
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Базовый тариф",
+          "description": "Создание персонализированной песни с базовой персонализацией"
+        },
+        "price": "2900",
+        "priceCurrency": "RUB"
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service", 
+          "name": "Продвинутый тариф",
+          "description": "Создание песни с детальной проработкой текста и анкетой"
+        },
+        "price": "4900",
+        "priceCurrency": "RUB"
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Премиум тариф", 
+          "description": "Создание эксклюзивной песни с видео-интервью и персональным продюсером"
+        },
+        "price": "9900",
+        "priceCurrency": "RUB"
+      }
+    ]
+  }
+}
 
 function App() {
   const { setToken } = useAuthStore()
@@ -44,6 +97,12 @@ function App() {
 
   return (
     <Router>
+      {/* СТАТИЧЕСКАЯ разметка - ДЕЛАЕМ ОСОЗНАННО ДЛЯ БЫСТРОГО СТАРТА */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      
       <Layout>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -58,6 +117,8 @@ function App() {
           <Route path="/order/success" element={<OrderSuccessPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/orders/:orderId/payment" element={<ManualPaymentPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
         </Routes>
       </Layout>
     </Router>
