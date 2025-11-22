@@ -630,12 +630,12 @@ async def assign_producer(
                 detail="Заказ не найден"
             )
         
-        # Получаем продюсера
-        producer = await crud_user.get(db, UUID(producer_id))
-        if not producer or not producer.is_producer:
+        # ⬇️⬇️⬇️ ИСПРАВЛЯЕМ: используем get_by_producer_id вместо get ⬇️⬇️⬇️
+        producer = await crud_user.get_by_producer_id(db, UUID(producer_id))
+        if not producer:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Пользователь не является продюсером"
+                detail="Пользователь не является продюсером или не найден"
             )
         
         # Назначаем продюсера
@@ -645,7 +645,12 @@ async def assign_producer(
         if order.status == OrderStatus.READY_FOR_REVIEW:
             order.status = OrderStatus.IN_PROGRESS
             print(f"🔍 Auto-changing status to IN_PROGRESS for order {order_id}")
-        
+
+        # Автоматически меняем статус если заказ был был в черновиках
+        if order.status == OrderStatus.DRAFT:
+            order.status = OrderStatus.IN_PROGRESS
+            print(f"🔍 Auto-changing status to IN_PROGRESS for order {order_id}")
+
         await db.commit()
         await db.refresh(order)
         

@@ -22,8 +22,10 @@ from app.crud.order import crud_order
 from app.schemas.track import Track as TrackSchema
 from app.models.track import Track
 from app.core.file_storage import file_storage
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.get("/orders", response_model=List[OrderSchema])
 async def get_producer_orders(
@@ -216,7 +218,9 @@ async def upload_track(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Файл должен быть аудио"
             )
-        
+        if order.status in [OrderStatus.PAID, OrderStatus.IN_PROGRESS_FINAL_REVISION]:
+            is_preview = False  # Для оплаченных заказов и финальных правок - всегда полная версия
+            print("🔍 Order is paid or final revision, forcing full version")
         # Сохраняем файл (обрезаем если это превью)
         if is_preview:
             print("🔍 Creating preview version (60 seconds)")
@@ -250,7 +254,12 @@ async def upload_track(
             await db.commit()
             await db.refresh(order)
             print(f"✅ Order status updated to: {order.status}")
-        
+        elif not is_preview and order.status == OrderStatus.IN_PROGRESS_FINAL_REVISION:
+            print(f"🔄 Final revision completed, updating status to READY_FOR_FINAL_REVIEW")
+            order.status = OrderStatus.READY_FOR_FINAL_REVIEW
+            await db.commit()
+            await db.refresh(order)
+            print(f"✅ Order status updated to: {order.status}")
         return TrackSchema.model_validate(db_track)
         
     except HTTPException:
@@ -433,6 +442,7 @@ async def add_producer_comment(
             detail=f"Ошибка при добавлении комментария: {str(e)}"
         )
 
+# В app/api/v1/endpoints/producer.py - ИСПРАВЛЯЕМ проверку статуса
 @router.post("/orders/{order_id}/upload-final-track")
 async def upload_final_track(
     order_id: UUID,
@@ -449,11 +459,11 @@ async def upload_final_track(
         if not order:
             raise HTTPException(status_code=404, detail="Заказ не найден")
         
-        # Проверяем что оплата подтверждена
-        if order.status != OrderStatus.PAYMENT_PENDING:
+        # ИСПРАВЛЯЕМ: Разрешаем загрузку финального трека для оплаченных заказов
+        if order.status not in [OrderStatus.PAID, OrderStatus.PAYMENT_PENDING]:
             raise HTTPException(
                 status_code=400,
-                detail="Ожидается подтверждение оплаты перед загрузкой финального трека"
+                detail="Заказ должен быть оплачен для загрузки финального трека"
             )
         
         # Проверяем права продюсера
@@ -475,9 +485,9 @@ async def upload_final_track(
         
         db.add(db_track)
         
-        # Меняем статус заказа
+        # Меняем статус заказа на "готов для финальной проверки"
         order.status = OrderStatus.READY_FOR_FINAL_REVIEW
-        order.final_track_uploaded_at = datetime.utcnow()
+        order.final_track_uploaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
         
         await db.commit()
         

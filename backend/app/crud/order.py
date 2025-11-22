@@ -268,4 +268,20 @@ class CRUDOrder:
         final_tracks = await crud_track.get_by_order(db, order_id, is_preview=False)
         return len(final_tracks) > 0
 
+    async def request_final_revision(
+        self,
+        db: AsyncSession,
+        order_id: UUID
+    ) -> Optional[OrderModel]:
+        """Запросить финальную правку (без уменьшения rounds_remaining)"""
+        order = await self.get_by_id(db, order_id)
+        if not order:
+            return None
+        
+        # Для финальных правок не уменьшаем rounds_remaining
+        # Просто меняем статус
+        order.status = OrderStatus.IN_PROGRESS_FINAL_REVISION
+        await db.commit()
+        await db.refresh(order)
+        return order
 crud_order = CRUDOrder()

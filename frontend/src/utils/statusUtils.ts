@@ -9,7 +9,8 @@ export const ORDER_STATUSES = {
     ready_for_final_review: 'Готов для финальной проверки', // ⬅️ НОВЫЙ
     completed: 'Завершен',
     cancelled: 'Отменен',
-    revision_requested: 'Требует доработки'
+    revision_requested: 'Требует доработки',
+    in_progress_final_revision: 'Финальная правка'
   } as const
   
   // Типы для TypeScript
@@ -23,8 +24,8 @@ export const ORDER_STATUSES = {
   
   // Функция для получения CSS классов для статуса
   export const getStatusClasses = (status: string): string => {
-    const baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium'
-    
+  const baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium'
+
     const statusClassMap: Record<string, string> = {
       completed: 'bg-green-100 text-green-800',
       in_progress: 'bg-blue-100 text-blue-800',
@@ -35,7 +36,8 @@ export const ORDER_STATUSES = {
       ready_for_final_review: 'bg-pink-100 text-pink-800', // ⬅️ НОВЫЙ
       draft: 'bg-gray-100 text-gray-800',
       cancelled: 'bg-red-100 text-red-800',
-      revision_requested: 'bg-orange-100 text-orange-800'
+      revision_requested: 'bg-orange-100 text-orange-800',
+      in_progress_final_revision: 'bg-purple-100 text-purple-800'
     }
     
     return `${baseClasses} ${statusClassMap[status] || 'bg-gray-100 text-gray-800'}`
@@ -62,7 +64,8 @@ export const ORDER_STATUSES = {
       'paid': 'indigo',
       'completed': 'green',
       'cancelled': 'red',
-      'revision_requested': 'orange'
+      'revision_requested': 'orange',
+      'in_progress_final_revision': 'gray'
     }
     return colorMap[status] || 'gray'
   }
@@ -79,7 +82,7 @@ export const ORDER_STATUSES = {
 
   // Функция для проверки находится ли заказ в работе
   export const isInProgress = (status: string): boolean => {
-    return status === 'in_progress' || status === 'revision_requested'
+    return status === 'in_progress' || status === 'revision_requested' || status === 'in_progress_final_revision' 
   }
 
   // Функция для проверки завершен ли заказ

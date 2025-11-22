@@ -279,7 +279,7 @@ const ProducerOrderDetailPage = () => {
         
         {/* Действия для продюсера */}
         <div className="flex gap-3">
-          {(order.status === 'in_progress' || order.status === 'paid') && (
+          {(order.status === 'in_progress' || order.status === 'paid' || order.status === 'ready_for_review') && (
             <button
               onClick={() => setShowUploadForm(true)}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
@@ -638,7 +638,7 @@ const ProducerOrderDetailPage = () => {
 
                 {/* Действия для трека */}
                 <div className="mt-3 flex gap-2">
-                  {order.status === 'ready' && (
+                  {order.status === 'ready_for_review' && (
                     <button
                       onClick={() => handleMarkAsReady(track.id)}
                       className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"

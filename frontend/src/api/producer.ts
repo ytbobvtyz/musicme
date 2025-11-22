@@ -95,11 +95,22 @@ export const producerConfirmPayment = async (orderId: string) => {
 
 export const uploadFinalTrack = async (formData: FormData) => {
   try {
-    const response = await apiClient.post('/producer/orders/upload-final-track', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
+    // Получаем order_id из formData
+    const orderId = formData.get('order_id') as string
+    if (!orderId) {
+      throw new Error('order_id обязателен для загрузки финального трека')
+    }
+
+    // Используем правильный URL с order_id
+    const response = await apiClient.post(
+      `/producer/orders/${orderId}/upload-final-track`, 
+      formData, 
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       }
-    })
+    )
     return response.data
   } catch (error: any) {
     console.error('🔍 Upload final track error:', error.response?.data)

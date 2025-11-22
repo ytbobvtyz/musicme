@@ -18,9 +18,10 @@ class OrderStatus(str, Enum):
     WAITING_INTERVIEW = "waiting_interview"
     IN_PROGRESS = "in_progress"
     READY_FOR_REVIEW = "ready_for_review"
-    PAYMENT_PENDING = "payment_pending"  # ⬅️ НОВЫЙ
+    PAYMENT_PENDING = "payment_pending"
     PAID = "paid"
-    READY_FOR_FINAL_REVIEW = "ready_for_final_review"  # ⬅️ НОВЫЙ
+    READY_FOR_FINAL_REVIEW = "ready_for_final_review"
+    IN_PROGRESS_FINAL_REVISION = "in_progress_final_revision"  # ⬅️ НОВЫЙ СТАТУС
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 

@@ -244,24 +244,6 @@
 
 *Основные изменения в версии 2.1: внедрение гибкой тарифной сетки с интеграцией Яндекс.Телемост для премиум-тарифа, что должно значительно расширить воронку и увеличить общую выручку.*
 
-Подготовка к MVP phase 1:
-
-[ ] Авторизация
-- [DONE] Яндекс Oauth
-- [TODO] Google Oauth
-- [TODO] VK Oauth
-- [TODO] Telegtam Oauth !Требуется домен
-
-[ ] Уведомления
-- [DONE] Загрегистрировать бота
-- [TODO] Спроектировать workflow
-- [TODO] 
-
-- [ ] Фронтенд
-- [DONE] Стили
-- [TODO] Карта навигации
-- [TODO] 
-
 
 Workflow по тарифам:
 Basic: форма → генерация → preview → оплата
@@ -270,9 +252,6 @@ Advanced: форма + анкета → генерация → preview → оп�
 
 Premium: форма + анкета + интервью → генерация → preview → оплата
 
-DRAFT → WAITING_INTERVIEW → IN_PROGRESS → READY_FOR_REVIEW ↔ IN_PROGRESS → READY → COMPLETED
-                             ↑                              ↓
-                             └─── пользователь оставил замечание ───┘
 
 DRAFT → WAITING_INTERVIEW → IN_PROGRESS → READY_FOR_REVIEW ↔ IN_PROGRESS → READY → COMPLETED
                              ↑                              ↓
@@ -282,3 +261,175 @@ DRAFT → WAITING_INTERVIEW → IN_PROGRESS → READY_FOR_REVIEW ↔ IN_PROGRESS
 READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COMPLETED
                                      ↑
                                      └─── REVISION_REQUESTED
+
+Структура backend:
+.
+├── alembic
+│   ├── versions
+│   │   └── .gitkeep
+│   ├── env.py
+│   └── script.py.mako
+├── app
+│   ├── api
+│   │   ├── v1
+│   │   │   ├── endpoints
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── admin.py
+│   │   │   │   ├── auth.py
+│   │   │   │   ├── example_tracks.py
+│   │   │   │   ├── genres.py
+│   │   │   │   ├── orders.py
+│   │   │   │   ├── payments.py
+│   │   │   │   ├── producer.py
+│   │   │   │   ├── tariffs.py
+│   │   │   │   ├── test.py
+│   │   │   │   ├── themes.py
+│   │   │   │   └── tracks.py
+│   │   │   ├── __init__.py
+│   │   │   └── router.py
+│   │   └── __init__.py
+│   ├── core
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── deps.py
+│   │   ├── file_storage.py
+│   │   └── security.py
+│   ├── crud
+│   │   ├── example_track.py
+│   │   ├── genre.py
+│   │   ├── order.py
+│   │   ├── revision.py
+│   │   ├── stats.py
+│   │   ├── tariff.py
+│   │   ├── theme.py
+│   │   ├── track.py
+│   │   └── user.py
+│   ├── models
+│   │   ├── __init__.py
+│   │   ├── example_track.py
+│   │   ├── genre.py
+│   │   ├── order.py
+│   │   ├── revision.py
+│   │   ├── tariff_plan.py
+│   │   ├── tariff.py
+│   │   ├── theme.py
+│   │   ├── track.py
+│   │   └── user.py
+│   ├── schemas
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── example_track.py
+│   │   ├── genre.py
+│   │   ├── order.py
+│   │   ├── revision.py
+│   │   ├── stats.py
+│   │   ├── tariff.py
+│   │   ├── telegram.py
+│   │   ├── theme.py
+│   │   ├── track.py
+│   │   └── user.py
+│   ├── services
+│   │   ├── order_service.py
+│   │   └── order_status_service.py
+│   ├── __init__.py
+│   └── init_database.py
+├── uploads
+│   ├── audio
+│   ├── covers
+│   └── examples
+├── .dockerignore
+├── alembic.ini
+├── main.py
+└── requirements.txt
+
+Структура frontend:
+.
+├── dist
+│   ├── assets
+│   │   ├── index-C9BLGvov.js
+│   │   └── index-D2wyqtMA.css
+│   └── index.html
+├── src
+│   ├── api
+│   │   ├── admin.ts
+│   │   ├── auth.ts
+│   │   ├── client.ts
+│   │   ├── genres.ts
+│   │   ├── orders.ts
+│   │   ├── payments.ts
+│   │   ├── producer.ts
+│   │   ├── revision.ts
+│   │   ├── tariffs.ts
+│   │   ├── themes.ts
+│   │   └── tracks.ts
+│   ├── components
+│   │   ├── admin
+│   │   │   ├── AdminLayout.tsx
+│   │   │   ├── ExamplesTab.tsx
+│   │   │   ├── OrdersTab.tsx
+│   │   │   ├── StatsTab.tsx
+│   │   │   ├── TariffForm.tsx
+│   │   │   ├── TariffList.tsx
+│   │   │   ├── TariffsTab.tsx
+│   │   │   └── TracksTab.tsx
+│   │   ├── order
+│   │   │   ├── AuthModal.tsx
+│   │   │   ├── ContactForm.tsx
+│   │   │   ├── OrderConfirmation.tsx
+│   │   │   ├── OrderForm.tsx
+│   │   │   └── Questionnaire.tsx
+│   │   ├── producer
+│   │   │   └── ProducerLayout.tsx
+│   │   ├── AuthBlock.tsx
+│   │   ├── Footer.tsx
+│   │   ├── Header.tsx
+│   │   ├── Layout.tsx
+│   │   ├── PaymentFAQ.tsx
+│   │   └── ThemeSquareBlock.tsx
+│   ├── hooks
+│   │   ├── useAdmin.ts
+│   │   ├── useExampleTracks.ts
+│   │   ├── useProducer.ts
+│   │   └── useTariffs.ts
+│   ├── pages
+│   │   ├── AdminPage.tsx
+│   │   ├── AuthCallbackPage.tsx
+│   │   ├── ExamplePage.tsx
+│   │   ├── HomePage.tsx
+│   │   ├── ManualPaymentPage.tsx
+│   │   ├── OrderDetailPage.tsx
+│   │   ├── OrderPage.tsx
+│   │   ├── OrdersPage.tsx
+│   │   ├── OrderSuccessPage.tsx
+│   │   ├── ProducerOrderDetailPage.tsx
+│   │   ├── ProducerPage.tsx
+│   │   └── TrackPage.tsx
+│   ├── store
+│   │   └── authStore.ts
+│   ├── types
+│   │   ├── exampleTrack.ts
+│   │   ├── genre.ts
+│   │   ├── order.ts
+│   │   ├── revision.ts
+│   │   ├── tariff.ts
+│   │   ├── telegram.ts
+│   │   ├── theme.ts
+│   │   ├── track.ts
+│   │   └── user.ts
+│   ├── utils
+│   │   ├── format.ts
+│   │   └── statusUtils.ts
+│   ├── App.tsx
+│   ├── index.css
+│   ├── main.tsx
+│   └── vite-env.d.ts
+├── .dockerignore
+├── index.html
+├── package-lock.json
+├── package.json
+├── postcss.config.js
+├── tailwind.config.js
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts

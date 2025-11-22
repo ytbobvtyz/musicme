@@ -388,28 +388,60 @@ async def request_final_revision(
     current_user: UserSchema = Depends(get_current_user)
 ):
     """
-    Запрос финальной правки после оплаты
+    Запрос финальной правки после оплаты (без возврата в IN_PROGRESS)
     """
-    order = await crud_order.get_by_id(db, order_id)
-    # Проверки прав...
-    
-    comment = revision_data.get("comment", "")
-    
-    # Сохраняем комментарий финальной правки
-    from app.crud.revision import crud_revision_comment
-    revision_number = await crud_revision_comment.get_last_revision_number(db, order_id) + 1
-    
-    comment_data = RevisionCommentCreate(
-        order_id=order_id,
-        comment=f"ФИНАЛЬНАЯ ПРАВКА: {comment}"
-    )
-    await crud_revision_comment.create(db, comment_data, current_user.id, revision_number)
-    
-    # Возвращаем в работу
-    order.status = OrderStatus.IN_PROGRESS
-    
-    await db.commit()
-    
-    # TODO: Уведомление продюсеру
-    
-    return {"message": "Правка отправлена продюсеру!"}
+    try:
+        order = await crud_order.get_by_id(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        if order.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этому заказу")
+        
+        # Проверяем что заказ в правильном статусе для финальной правки
+        if order.status != OrderStatus.READY_FOR_FINAL_REVIEW:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Финальная правка возможна только после загрузки финального трека"
+            )
+        
+        comment = revision_data.get("comment", "").strip()
+        if not comment:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Комментарий обязателен для финальной правки"
+            )
+        
+        # Получаем номер следующей правки
+        revision_number = await crud_revision_comment.get_last_revision_number(db, order_id) + 1
+        
+        # Сохраняем комментарий финальной правки
+        comment_data = RevisionCommentCreate(
+            order_id=order_id,
+            comment=f"ФИНАЛЬНАЯ ПРАВКА: {comment}"
+        )
+        await crud_revision_comment.create(db, comment_data, current_user.id, revision_number)
+        
+        # ⬇️⬇️⬇️ ВАЖНОЕ ИЗМЕНЕНИЕ: Не возвращаем в IN_PROGRESS, а переводим в специальный статус
+        order.status = OrderStatus.IN_PROGRESS_FINAL_REVISION  # Нужно добавить этот статус в OrderStatus
+        
+        await db.commit()
+        
+        # TODO: Уведомление продюсеру о финальной правке
+        
+        logger.info(f"Запрошена финальная правка для заказа: {order_id}, правка #{revision_number}")
+        
+        return {
+            "message": "Финальная правка отправлена продюсеру!",
+            "status": order.status,
+            "revision_number": revision_number
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при запросе финальной правки: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при запросе финальной правки: {str(e)}"
+        )
