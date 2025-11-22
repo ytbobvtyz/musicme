@@ -247,19 +247,32 @@ async def upload_track(
         
         print(f"✅ Track created: {db_track.id}, is_preview: {db_track.is_preview}")
         
-        # ⬇️⬇️⬇️ ВАЖНОЕ ИЗМЕНЕНИЕ: Автоматически меняем статус заказа при загрузке превью
+        # ⬇️⬇️⬇️ ИСПРАВЛЯЕМ ЛОГИКУ СМЕНЫ СТАТУСА ⬇️⬇️⬇️
         if is_preview and order.status in [OrderStatus.IN_PROGRESS, OrderStatus.DRAFT]:
             print(f"🔄 Auto-updating order status from {order.status} to READY_FOR_REVIEW")
             order.status = OrderStatus.READY_FOR_REVIEW
             await db.commit()
             await db.refresh(order)
             print(f"✅ Order status updated to: {order.status}")
+        
+        # ⬇️⬇️⬇️ ДОБАВЛЯЕМ ЛОГИКУ ДЛЯ ФИНАЛЬНЫХ ПРАВОК ⬇️⬇️⬇️
         elif not is_preview and order.status == OrderStatus.IN_PROGRESS_FINAL_REVISION:
-            print(f"🔄 Final revision completed, updating status to READY_FOR_FINAL_REVIEW")
-            order.status = OrderStatus.READY_FOR_FINAL_REVIEW
+            print(f"🔄 Final revision completed, updating status to COMPLETED")
+            order.status = OrderStatus.COMPLETED
+            order.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
             await db.refresh(order)
             print(f"✅ Order status updated to: {order.status}")
+        
+        # ⬇️⬇️⬇️ СУЩЕСТВУЮЩАЯ ЛОГИКА ДЛЯ ОБЫЧНЫХ ПОЛНЫХ ТРЕКОВ ⬇️⬇️⬇️
+        elif not is_preview and order.status == OrderStatus.PAID:
+            print(f"🔄 Full track uploaded for paid order, updating status to READY_FOR_FINAL_REVIEW")
+            order.status = OrderStatus.READY_FOR_FINAL_REVIEW
+            order.final_track_uploaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            await db.commit()
+            await db.refresh(order)
+            print(f"✅ Order status updated to: {order.status}")
+    
         return TrackSchema.model_validate(db_track)
         
     except HTTPException:

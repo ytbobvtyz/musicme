@@ -1,19 +1,47 @@
-// src/pages/ProducerPage.tsx - ПОЛНЫЙ ОБНОВЛЕННЫЙ КОД
+// В src/pages/ProducerPage.tsx - ИСПРАВЛЯЕМ ТИПЫ
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { getProducerOrders, updateOrderStatus } from '@/api/producer'
 import { Order } from '@/types/order'
 import ProducerLayout from '@/components/producer/ProducerLayout'
 import { useNavigate } from 'react-router-dom'
+import { getStatusText, getStatusClasses, ORDER_STATUSES } from '@/utils/statusUtils'
 
 // Типы вкладок
 type TabType = 'in_progress' | 'awaiting_interview' | 'paid' | 'completed'
+
+// ⬇️⬇️⬇️ ИСПРАВЛЯЕМ КОНФИГУРАЦИЮ С ЯВНЫМИ ТИПАМИ ⬇️⬇️⬇️
+type TabConfig = {
+  [key in TabType]: {
+    label: string
+    statuses: string[]
+  }
+}
+
+const TAB_CONFIG: TabConfig = {
+  in_progress: {
+    label: 'В работе',
+    statuses: ['in_progress']
+  },
+  awaiting_interview: {
+    label: 'Ожидают интервью', 
+    statuses: ['waiting_interview']
+  },
+  paid: {
+    label: 'Ожидают финальный трек',
+    statuses: ['payment_pending', 'paid', 'revision_requested', 'in_progress_final_revision']
+  },
+  completed: {
+    label: 'Завершённые',
+    statuses: ['completed']
+  }
+}
 
 const ProducerPage = () => {
   const { user } = useAuthStore()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'in_progress' | 'awaiting_interview' | 'paid' | 'completed'>('in_progress')
+  const [activeTab, setActiveTab] = useState<TabType>('in_progress')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -24,7 +52,6 @@ const ProducerPage = () => {
 
   const loadOrders = async () => {
     try {
-      // Загружаем ВСЕ заказы без фильтрации (бэкенд вернет все статусы)
       const ordersData = await getProducerOrders()
       setOrders(ordersData)
     } catch (error) {
@@ -34,25 +61,16 @@ const ProducerPage = () => {
     }
   }
 
-  // Фильтруем заказы по активной вкладке на фронтенде
-  const getFilteredOrders = () => {
-    switch (activeTab) {
-      case 'in_progress':
-        return orders.filter(order => 
-          ['in_progress'].includes(order.status) // ТОЛЬКО in_progress
-        )
-      case 'awaiting_interview':
-        return orders.filter(order => order.status === 'waiting_interview')
-      case 'paid':
-        return orders.filter(order => 
-          ['payment_pending', 'paid', 'revision_requested', 'in_progress_final_revision'].includes(order.status)
-        )
-      case 'completed':
-        return orders.filter(order => order.status === 'completed')
-      default:
-        return []
-    }
-  }
+  // ⬇️⬇️⬇️ ФИЛЬТРАЦИЯ ТЕПЕРЬ РАБОТАЕТ КОРРЕКТНО ⬇️⬇️⬇️
+  const filteredOrders = orders.filter(order => 
+    TAB_CONFIG[activeTab].statuses.includes(order.status)
+  )
+
+  // ⬇️⬇️⬇️ СТАТИСТИКА ТЕПЕРЬ РАБОТАЕТ КОРРЕКТНО ⬇️⬇️⬇️
+  const tabStats = Object.entries(TAB_CONFIG).reduce((acc, [tabId, config]) => ({
+    ...acc,
+    [tabId]: orders.filter(order => config.statuses.includes(order.status)).length
+  }), {} as Record<TabType, number>)
 
   const handleStartWork = async (orderId: string) => {
     try {
@@ -76,20 +94,6 @@ const ProducerPage = () => {
 
   const handleViewOrder = (orderId: string) => {
     navigate(`/producer/orders/${orderId}`)
-  }
-
-  const filteredOrders = getFilteredOrders()
-
-  // Статистика для вкладок
-  const tabStats = {
-    in_progress: orders.filter(order => 
-      ['in_progress'].includes(order.status)
-    ).length,
-    awaiting_interview: orders.filter(order => order.status === 'waiting_interview').length,
-    paid: orders.filter(order => 
-      ['payment_pending', 'paid', 'revision_requested', 'in_progress_final_revision'].includes(order.status)
-    ).length,
-    completed: orders.filter(order => order.status === 'completed').length
   }
 
   if (!user) {
@@ -118,44 +122,31 @@ const ProducerPage = () => {
 
           {/* Статистика */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{tabStats.in_progress}</div>
-              <div className="text-sm text-blue-800">В работе</div>
-            </div>
-            <div className="bg-orange-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">{tabStats.awaiting_interview}</div>
-              <div className="text-sm text-orange-800">Ожидают интервью</div>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{tabStats.paid}</div>
-              <div className="text-sm text-green-800">Ожидают финальный трек</div>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-gray-600">{tabStats.completed}</div>
-              <div className="text-sm text-gray-800">Завершены</div>
-            </div>
+            {Object.entries(TAB_CONFIG).map(([tabId, config]) => (
+              <div key={tabId} className="bg-white p-4 rounded-lg shadow border">
+                <div className="text-2xl font-bold text-gray-900">
+                  {tabStats[tabId as TabType]}
+                </div>
+                <div className="text-sm text-gray-600">{config.label}</div>
+              </div>
+            ))}
           </div>
 
-          {/* Табы */}
+          {/* Вкладки */}
           <div className="bg-white rounded-lg shadow mb-6">
             <div className="border-b">
               <nav className="flex -mb-px">
-                {[
-                  { id: 'in_progress' as TabType, label: 'В работе', count: tabStats.in_progress },
-                  { id: 'awaiting_interview' as TabType, label: 'Ожидают интервью', count: tabStats.awaiting_interview },
-                  { id: 'paid' as TabType, label: 'Ожидают финальный трек', count: tabStats.paid },
-                  { id: 'completed' as TabType, label: 'Завершённые', count: tabStats.completed }
-                ].map(tab => (
+                {Object.entries(TAB_CONFIG).map(([tabId, config]) => (
                   <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    key={tabId}
+                    onClick={() => setActiveTab(tabId as TabType)}
                     className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                      activeTab === tab.id
+                      activeTab === tabId
                         ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {tab.label} ({tab.count})
+                    {config.label} ({tabStats[tabId as TabType]})
                   </button>
                 ))}
               </nav>
@@ -175,30 +166,14 @@ const ProducerPage = () => {
                   key={order.id}
                   order={order}
                   activeTab={activeTab}
+                  onViewOrder={handleViewOrder}
                   onStartWork={handleStartWork}
                   onCompleteInterview={handleCompleteInterview}
-                  onViewOrder={handleViewOrder}
                 />
               ))}
               
               {filteredOrders.length === 0 && (
-                <div className="text-center py-12 bg-white rounded-lg shadow">
-                  <div className="text-gray-400 text-6xl mb-4">
-                    {activeTab === 'in_progress' ? '🎵' : 
-                     activeTab === 'awaiting_interview' ? '🎤' :
-                     activeTab === 'paid' ? '💰' : '✅'}
-                  </div>
-                  <p className="text-gray-500 text-lg">
-                    {activeTab === 'in_progress' && 'Нет заказов в работе'}
-                    {activeTab === 'awaiting_interview' && 'Нет заказов, ожидающих интервью'}
-                    {activeTab === 'paid' && 'Нет заказов, ожидающих финальный трек'}
-                    {activeTab === 'completed' && 'Нет завершённых заказов'}
-                  </p>
-                  <p className="text-gray-400 mt-2">
-                    {activeTab === 'in_progress' && 'Новые заказы появятся здесь после назначения администратором'}
-                    {activeTab === 'paid' && 'Заказы появятся здесь после подтверждения оплаты'}
-                  </p>
-                </div>
+                <EmptyState activeTab={activeTab} />
               )}
             </div>
           )}
@@ -208,35 +183,136 @@ const ProducerPage = () => {
   )
 }
 
-// Обновленный компонент карточки заказа
+// Компонент пустого состояния
+const EmptyState = ({ activeTab }: { activeTab: TabType }) => {
+  const icons = {
+    in_progress: '🎵',
+    awaiting_interview: '🎤',
+    paid: '💰',
+    completed: '✅'
+  }
+
+  const messages = {
+    in_progress: { title: 'Нет заказов в работе', subtitle: 'Новые заказы появятся здесь после назначения администратором' },
+    awaiting_interview: { title: 'Нет заказов, ожидающих интервью', subtitle: 'Все интервью проведены' },
+    paid: { title: 'Нет заказов, ожидающих финальный трек', subtitle: 'Заказы появятся здесь после подтверждения оплаты' },
+    completed: { title: 'Нет завершённых заказов', subtitle: 'Завершённые заказы появятся здесь' }
+  }
+
+  return (
+    <div className="text-center py-12 bg-white rounded-lg shadow">
+      <div className="text-gray-400 text-6xl mb-4">
+        {icons[activeTab]}
+      </div>
+      <p className="text-gray-500 text-lg">
+        {messages[activeTab].title}
+      </p>
+      <p className="text-gray-400 mt-2">
+        {messages[activeTab].subtitle}
+      </p>
+    </div>
+  )
+}
+
+// Упрощенный компонент карточки заказа
 const OrderCard = ({ 
   order, 
   activeTab,
-  onStartWork, 
-  onCompleteInterview,
-  onViewOrder 
+  onViewOrder,
+  onStartWork,
+  onCompleteInterview
 }: {
   order: Order
-  activeTab: string
-  onStartWork: (orderId: string) => void
-  onCompleteInterview: (orderId: string) => void
+  activeTab: TabType
   onViewOrder: (orderId: string) => void
+  onStartWork?: (orderId: string) => void
+  onCompleteInterview?: (orderId: string) => void
 }) => {
-  const getStatusInfo = (status: string) => {
-  const statusMap: Record<string, { label: string, color: string, bgColor: string }> = {
-    'in_progress': { label: 'В работе', color: 'text-green-800', bgColor: 'bg-green-100' },
-    'revision_requested': { label: 'Требует доработки', color: 'text-orange-800', bgColor: 'bg-orange-100' },
-    'ready_for_review': { label: 'Готов для проверки', color: 'text-blue-800', bgColor: 'bg-blue-100' },
-    'payment_pending': { label: 'Ожидает оплаты', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
-    'waiting_interview': { label: 'Ожидает интервью', color: 'text-purple-800', bgColor: 'bg-purple-100' },
-    'paid': { label: 'Оплачен', color: 'text-green-800', bgColor: 'bg-green-100' },
-    'in_progress_final_revision': { label: 'Финальная правка', color: 'text-purple-800', bgColor: 'bg-purple-100' }, // ⬅️ НОВЫЙ
-    'completed': { label: 'Завершен', color: 'text-gray-800', bgColor: 'bg-gray-100' }
+  const getActionButton = () => {
+    switch (order.status) {
+      case 'waiting_interview':
+        return (
+          <button
+            onClick={() => onCompleteInterview?.(order.id)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+          >
+            Интервью проведено
+          </button>
+        )
+      case 'in_progress':
+        return (
+          <button
+            onClick={() => onStartWork?.(order.id)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Начать работу
+          </button>
+        )
+      case 'payment_pending':
+        return (
+          <button
+            onClick={() => {
+              if (window.confirm('Вы уверены, что оплата получена?')) {
+                // TODO: Вызов API producerConfirmPayment
+                console.log('Confirming payment for order:', order.id)
+              }
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+          >
+            Подтвердить оплату
+          </button>
+        )
+      case 'paid':
+        return (
+          <button
+            onClick={() => onViewOrder(order.id)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+          >
+            Загрузить финальный трек
+          </button>
+        )
+      case 'revision_requested':
+        return (
+          <button
+            onClick={() => onViewOrder(order.id)}
+            className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 transition-colors"
+          >
+            Выполнить доработку
+          </button>
+        )
+      case 'in_progress_final_revision':
+        return (
+          <button
+            onClick={() => onViewOrder(order.id)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+          >
+            Выполнить финальную правку
+          </button>
+        )
+      default:
+        return (
+          <button
+            onClick={() => onViewOrder(order.id)}
+            className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+          >
+            Подробнее
+          </button>
+        )
+    }
   }
-  return statusMap[status] || { label: status, color: 'text-gray-800', bgColor: 'bg-gray-100' }
-}
 
-  const statusInfo = getStatusInfo(order.status)
+  const getActionDescription = () => {
+    const descriptions: Record<string, string> = {
+      waiting_interview: '💬 Запланируйте видео-интервью с клиентом',
+      in_progress: '🎵 Приступайте к созданию трека',
+      payment_pending: '💰 Клиент заявил об оплате',
+      paid: '✅ Оплата подтверждена',
+      revision_requested: '🔄 Клиент запросил доработку',
+      in_progress_final_revision: '✨ Клиент запросил финальную правку',
+      completed: '✅ Заказ успешно завершен'
+    }
+    return descriptions[order.status] || 'Просмотреть детали заказа'
+  }
 
   return (
     <div className="bg-white rounded-lg shadow border p-6">
@@ -259,8 +335,8 @@ const OrderCard = ({
               {order.tariff_plan === 'premium' ? 'Премиум' : 
                order.tariff_plan === 'advanced' ? 'Продвинутый' : 'Базовый'}
             </span>
-            <span className={`px-2 py-1 rounded text-xs font-medium ${statusInfo.bgColor} ${statusInfo.color}`}>
-              {statusInfo.label}
+            <span className={getStatusClasses(order.status)}>
+              {getStatusText(order.status)}
             </span>
           </div>
         </div>
@@ -296,160 +372,24 @@ const OrderCard = ({
 
       {/* Действия */}
       <div className="border-t pt-4 mt-4">
-        {activeTab === 'awaiting_interview' ? (
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-600">
-                💬 Запланируйте видео-интервью с клиентом
-              </p>
-              {order.preferences?.contact && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Контакт: {order.preferences.contact.contact_value}
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => onCompleteInterview(order.id)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-            >
-              Интервью проведено
-            </button>
-          </div>
-        ) : activeTab === 'in_progress' ? (
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-600">
-                🎵 Приступайте к созданию трека
-              </p>
-              {order.tariff_plan === 'premium' && order.preferences?.questionnaire && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Доступна детальная анкета клиента
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => onStartWork(order.id)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-            >
-              Начать работу
-            </button>
-          </div>
-        ) : activeTab === 'paid' ? (
-         <div className="space-y-3">
-            {/* Для payment_pending - кнопка подтверждения оплаты */}
-            {order.status === 'payment_pending' && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm text-gray-600">
-                    💰 Клиент заявил об оплате
-                  </p>
-                  <p className="text-sm text-orange-600 mt-1">
-                    Проверьте поступление средств и подтвердите оплату
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    if (window.confirm('Вы уверены, что оплата получена? После подтверждения вы сможете загрузить финальный трек.')) {
-                      // TODO: Вызов API producerConfirmPayment
-                      console.log('Confirming payment for order:', order.id)
-                    }
-                  }}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                >
-                  Подтвердить оплату
-                </button>
-              </div>
-            )}
-            
-            {/* Для paid - кнопка загрузки финального трека */}
-            {order.status === 'paid' && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm text-gray-600">
-                    ✅ Оплата подтверждена
-                  </p>
-                  <p className="text-sm text-green-600 mt-1">
-                    Загрузите финальный трек для клиента
-                  </p>
-                </div>
-                <button
-                  onClick={() => onViewOrder(order.id)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                >
-                  Загрузить финальный трек
-                </button>
-              </div>
-            )}
-            
-            {/* Для revision_requested - кнопка выполнения доработки */}
-            {order.status === 'revision_requested' && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm text-gray-600">
-                    🔄 Клиент запросил доработку
-                  </p>
-                  <p className="text-sm text-orange-600 mt-1">
-                    Выполните правки и загрузите обновленный трек
-                  </p>
-                </div>
-                <button
-                  onClick={() => onViewOrder(order.id)}
-                  className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 transition-colors"
-                >
-                  Выполнить доработку
-                </button>
-              </div>
-            )}
-            
-            {/* ⬇️⬇️⬇️ ДОБАВЛЯЕМ ОБРАБОТКУ in_progress_final_revision ⬇️⬇️⬇️ */}
-            {order.status === 'in_progress_final_revision' && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm text-gray-600">
-                    ✨ Клиент запросил финальную правку
-                  </p>
-                  <p className="text-sm text-purple-600 mt-1">
-                    Выполните финальные правки и загрузите обновленную версию
-                  </p>
-                </div>
-                <button
-                  onClick={() => onViewOrder(order.id)}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
-                >
-                  Выполнить финальную правку
-                </button>
-              </div>
-            )}
-            
-            {/* Общая кнопка просмотра заказа */}
-            <div className="flex justify-center">
-              <button
-                onClick={() => onViewOrder(order.id)}
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-700 transition-colors text-sm"
-              >
-                Подробнее о заказе
-              </button>
-            </div>
-          </div>
-        ) : (
-          // Для completed
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-600">
-                ✅ Заказ успешно завершен
-              </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <p className="text-sm text-gray-600">
+              {getActionDescription()}
+            </p>
+            {order.preferences?.contact && order.status === 'waiting_interview' && (
               <p className="text-sm text-gray-500 mt-1">
-                Клиент получил финальную версию
+                Контакт: {order.preferences.contact.contact_value}
               </p>
-            </div>
-            <button
-              onClick={() => onViewOrder(order.id)}
-              className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
-            >
-              Просмотреть заказ
-            </button>
+            )}
+            {order.tariff_plan === 'premium' && order.preferences?.questionnaire && order.status === 'in_progress' && (
+              <p className="text-sm text-gray-500 mt-1">
+                Доступна детальная анкета клиента
+              </p>
+            )}
           </div>
-        )}
+          {getActionButton()}
+        </div>
       </div>
     </div>
   )
