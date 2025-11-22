@@ -648,8 +648,12 @@ async def assign_producer(
 
         # Автоматически меняем статус если заказ был был в черновиках
         if order.status == OrderStatus.DRAFT:
-            order.status = OrderStatus.IN_PROGRESS
-            print(f"🔍 Auto-changing status to IN_PROGRESS for order {order_id}")
+            if order.tariff_plan == "premium":
+                order.status = OrderStatus.WAITING_INTERVIEW
+                print(f"🔍 Auto-changing status to WAITING_INTERVIEW for order {order_id}")
+            else:
+                order.status = OrderStatus.IN_PROGRESS
+                print(f"🔍 Auto-changing status to IN_PROGRESS for order {order_id}")
 
         await db.commit()
         await db.refresh(order)

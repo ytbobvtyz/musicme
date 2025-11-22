@@ -40,7 +40,7 @@ const Header = () => {
                 : 'text-gray-900'
             }`}
           >
-            music me
+            MusicMe.ru
           </Link>
           
           <div className="flex items-center gap-8">

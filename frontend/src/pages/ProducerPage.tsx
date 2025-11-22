@@ -251,12 +251,7 @@ const OrderCard = ({
       case 'payment_pending':
         return (
           <button
-            onClick={() => {
-              if (window.confirm('Вы уверены, что оплата получена?')) {
-                // TODO: Вызов API producerConfirmPayment
-                console.log('Confirming payment for order:', order.id)
-              }
-            }}
+            onClick={() => onViewOrder(order.id)}
             className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
           >
             Подтвердить оплату
