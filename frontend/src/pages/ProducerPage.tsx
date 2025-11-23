@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { getStatusText, getStatusClasses, ORDER_STATUSES } from '@/utils/statusUtils'
 
 // Типы вкладок
-type TabType = 'in_progress' | 'awaiting_interview' | 'paid' | 'completed'
+type TabType = 'in_progress' | 'awaiting_interview' | 'paid' | 'completed' | 'cancelled'
 
 // ⬇️⬇️⬇️ ИСПРАВЛЯЕМ КОНФИГУРАЦИЮ С ЯВНЫМИ ТИПАМИ ⬇️⬇️⬇️
 type TabConfig = {
@@ -34,7 +34,11 @@ const TAB_CONFIG: TabConfig = {
   completed: {
     label: 'Завершённые',
     statuses: ['completed']
-  }
+  },
+  cancelled: {
+    label: 'Отменённые',
+    statuses: ['cancelled']
+  } 
 }
 
 const ProducerPage = () => {
@@ -189,14 +193,16 @@ const EmptyState = ({ activeTab }: { activeTab: TabType }) => {
     in_progress: '🎵',
     awaiting_interview: '🎤',
     paid: '💰',
-    completed: '✅'
+    completed: '✅',
+    cancelled: 'x'
   }
 
   const messages = {
     in_progress: { title: 'Нет заказов в работе', subtitle: 'Новые заказы появятся здесь после назначения администратором' },
     awaiting_interview: { title: 'Нет заказов, ожидающих интервью', subtitle: 'Все интервью проведены' },
     paid: { title: 'Нет заказов, ожидающих финальный трек', subtitle: 'Заказы появятся здесь после подтверждения оплаты' },
-    completed: { title: 'Нет завершённых заказов', subtitle: 'Завершённые заказы появятся здесь' }
+    completed: { title: 'Нет завершённых заказов', subtitle: 'Завершённые заказы появятся здесь' },
+    cancelled: {title: 'Нет отменённых заказов', subtitle: 'Отменённые заказы появятся здесь'}
   }
 
   return (
@@ -304,7 +310,8 @@ const OrderCard = ({
       paid: '✅ Оплата подтверждена',
       revision_requested: '🔄 Клиент запросил доработку',
       in_progress_final_revision: '✨ Клиент запросил финальную правку',
-      completed: '✅ Заказ успешно завершен'
+      completed: '✅ Заказ успешно завершен',
+      cancelled: 'Заказ был отменён'
     }
     return descriptions[order.status] || 'Просмотреть детали заказа'
   }

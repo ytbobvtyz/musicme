@@ -42,6 +42,10 @@ const presetFilters = [
   { 
     label: 'Готовы для финальной проверки', 
     value: ['ready_for_final_review'] 
+  },
+  { 
+    label: 'Отменены пользователем или админом', 
+    value: ['cancelled']
   }
 ]
 
@@ -309,6 +313,12 @@ const OrdersTab = () => {
             {allOrders.filter(o => o.status === 'completed').length}
           </div>
           <div className="text-sm text-green-800">Завершены</div>
+        </div>
+        <div className="bg-red-50 p-4 rounded-lg">
+          <div className="text-2xl font-bold text-red-600">
+            {allOrders.filter(o => o.status === 'cancelled').length}
+          </div>
+          <div className="text-sm text-red-800">Отменены</div>
         </div>
       </div>
 
