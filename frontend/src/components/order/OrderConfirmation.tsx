@@ -108,7 +108,7 @@ const OrderConfirmation = ({ orderData, tariff, onRequireAuth, isGuestMode }: Or
               </div>
               <div>
                 <dt className="text-sm text-gray-500">Срок выполнения</dt>
-                <dd className="font-medium">{tariff.deadline_days} дней</dd>
+                <dd className="font-medium">до {tariff.deadline_days} дней</dd>
               </div>
             </dl>
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { createOrder } from '@/api/orders'
@@ -8,8 +8,14 @@ const AuthCallbackPage = () => {
   const [searchParams] = useSearchParams()
   const { setToken, isAuthenticated } = useAuthStore()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  
+  const hasProcessed = useRef(false)
 
   useEffect(() => {
+
+    if (hasProcessed.current) return
+    hasProcessed.current = true
+
     const handleAuthCallback = async () => {
       try {
         const token = searchParams.get('token')
@@ -27,9 +33,10 @@ const AuthCallbackPage = () => {
           const orderData = JSON.parse(pendingOrder)
           console.log('🔍 Parsed orderData for API:', orderData)
           
+          localStorage.removeItem('pendingOrder')          
           // ПРЯМАЯ ОТПРАВКА - данные уже в правильном формате
           await createOrder(orderData)
-          localStorage.removeItem('pendingOrder')
+
           
           navigate('/order/success', { 
             state: { 

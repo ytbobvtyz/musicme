@@ -56,7 +56,8 @@ class Order(OrderBase):
 class OrderDetail(Order):
     """Детальная схема заказа с треками"""
     tracks: List[Track] = []
-
+    price: int
+    
 class AdminOrder(Order):
     """Схема заказа для админки с пользователем"""
     user: Optional[User] = None
