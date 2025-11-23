@@ -48,8 +48,8 @@ app.include_router(api_router, prefix="/api/v1")
 async def root():
     """Корневой endpoint"""
     return {
-        "message": "Mysong-Podarok.ru API",
-        "version": "1.0.0",
+        "message": "MusicMe.ru",
+        "version": "1.0.1",
         "docs": "/docs"
     }
 
