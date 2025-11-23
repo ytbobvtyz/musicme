@@ -15,7 +15,14 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000", 
+        "http://localhost:5173",
+        "http://193.108.115.232",
+        "https://musicme.ru",
+        "http://musicme.ru"
+    ]
     
     # Debug mode
     DEBUG: bool = False  # ⬅️ ДОБАВЬ ЭТУ СТРОКУ
