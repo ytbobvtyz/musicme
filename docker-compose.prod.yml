@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: mysong
+      POSTGRES_USER: mysong_user
+      POSTGRES_PASSWORD: mysong_password
+    # ⬇️ В ПРОДАКШЕНЕ НЕ ОТКРЫВАЕМ ПОРТЫ НАРУЖУ
+    # ports:
+    #   - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mysong_user -d mysong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always  # ⬅️ ДОБАВЛЯЕМ
+    networks:
+      - musicme-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"  # ⬅️ ОСТАВЛЯЕМ - это наш API
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://mysong_user:mysong_password@postgres:5432/mysong
+      - SUNO_API_KEY=${SUNO_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=https://musicme.ru,http://musicme.ru
+      - DOMAIN=musicme.ru
+    # ⬇️ УБИРАЕМ env_file - все через environment
+    # env_file:
+    #   - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # ⬇️ УБИРАЕМ volumes - в продакшене код внутри образа
+    # volumes:
+    #   - ./backend:/app
+    command: >
+      sh -c "python -m app.init_database &&
+             uvicorn main:app --host 0.0.0.0 --port 8000"
+    restart: always  # ⬅️ ДОБАВЛЯЕМ
+    networks:
+      - musicme-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "80:3000"  # ⬅️ МЕНЯЕМ НА 80 ПОРТ!
+    environment:
+      - VITE_API_URL=http://localhost:8000  # ⬅️ ВОЗВРАЩАЕМ ДЛЯ ПРОДАКШЕНА
+    # ⬇️ УБИРАЕМ volumes
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
+    restart: always  # ⬅️ ДОБАВЛЯЕМ
+    networks:
+      - musicme-network
+
+volumes:
+  postgres_data:
+
+networks:
+  musicme-network:
+    driver: bridge
