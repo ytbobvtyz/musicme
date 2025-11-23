@@ -63,9 +63,9 @@ const ManualPaymentPage = () => {
 
   // Реквизиты для оплаты (замените на свои)
   const paymentDetails = {
-    bank: 'Тинькофф',
-    cardNumber: '5536 9138 1234 5678',
-    recipient: 'Иванов Иван Иванович',
+    bank: 'Сбербанк',
+    cardNumber: '4276 1609 3665 2156',
+    recipient: 'Константинов А.С.',
     amount: order?.price || 0,
     purpose: `Оплата заказа ${orderId}`
   }

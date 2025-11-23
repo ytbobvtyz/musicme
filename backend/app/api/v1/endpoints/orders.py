@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 import logging
 from datetime import datetime, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.order import crud_order
 from app.core.database import get_db
@@ -444,4 +445,58 @@ async def request_final_revision(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при запросе финальной правки: {str(e)}"
+        )
+
+@router.post("/{order_id}/cancel")
+async def cancel_order(
+    order_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserSchema = Depends(get_current_user)
+):
+    """
+    Отменить заказ (только для пользователя)
+    """
+    try:
+        # Получаем заказ
+        order = await crud_order.get_by_id(db, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден")
+        
+        # Проверяем права доступа
+        if order.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Нет доступа к этому заказу")
+        
+        # Проверяем можно ли отменить заказ
+        if order.status in [OrderStatus.PAID, OrderStatus.COMPLETED, OrderStatus.CANCELLED]:
+            raise HTTPException(
+                status_code=400,
+                detail="Невозможно отменить заказ в текущем статусе"
+            )
+        
+        # Меняем статус на отмененный
+        order.status = OrderStatus.CANCELLED
+        order.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        
+        await db.commit()
+        
+        # TODO: Уведомление продюсеру если заказ был назначен
+        if order.producer_id:
+            logger.info(f"Заказ {order_id} отменен, уведомляем продюсера {order.producer_id}")
+        
+        logger.info(f"Пользователь {current_user.id} отменил заказ {order_id}")
+        
+        return {
+            "message": "Заказ успешно отменен",
+            "order_id": str(order.id),
+            "status": order.status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Ошибка при отмене заказа: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при отмене заказа: {str(e)}"
         )

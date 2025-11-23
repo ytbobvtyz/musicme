@@ -134,3 +134,13 @@ export const requestFinalRevision = async (orderId: string, comment: string) => 
     throw new Error(error.response?.data?.detail || 'Ошибка запроса финальной правки')
   }
 }
+
+export const cancelOrder = async (orderId: string): Promise<{message: string}> => {
+  try {
+    const response = await apiClient.post(`/orders/${orderId}/cancel`)
+    return response.data
+  } catch (error: any) {
+    console.error('🔍 Cancel order error:', error.response?.data)
+    throw new Error(error.response?.data?.detail || 'Ошибка отмены заказа')
+  }
+}
