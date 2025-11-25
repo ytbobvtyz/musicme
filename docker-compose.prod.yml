@@ -7,9 +7,6 @@ services:
       POSTGRES_DB: mysong
       POSTGRES_USER: mysong_user
       POSTGRES_PASSWORD: mysong_password
-    # ⬇️ В ПРОДАКШЕНЕ НЕ ОТКРЫВАЕМ ПОРТЫ НАРУЖУ
-    # ports:
-    #   - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,7 +14,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: always  # ⬅️ ДОБАВЛЯЕМ
+    restart: always
     networks:
       - musicme-network
 
@@ -25,28 +22,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    ports:
-      - "8000:8000"  # ⬅️ ОСТАВЛЯЕМ - это наш API
     environment:
       - DATABASE_URL=postgresql+asyncpg://mysong_user:mysong_password@postgres:5432/mysong
       - SUNO_API_KEY=${SUNO_API_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - ENVIRONMENT=production
-      - CORS_ORIGINS=https://musicme.ru,http://musicme.ru
-      - DOMAIN=musicme.ru
-    # ⬇️ УБИРАЕМ env_file - все через environment
-    # env_file:
-    #   - .env
     depends_on:
       postgres:
         condition: service_healthy
-    # ⬇️ УБИРАЕМ volumes - в продакшене код внутри образа
-    # volumes:
-    #   - ./backend:/app
-    command: >
-      sh -c "python -m app.init_database &&
-             uvicorn main:app --host 0.0.0.0 --port 8000"
-    restart: always  # ⬅️ ДОБАВЛЯЕМ
+    restart: always
     networks:
       - musicme-network
 
@@ -54,15 +38,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    # ports:
-      # - "80:3000" 
+      target: production
     environment:
-      - VITE_API_URL=http://localhost:8000  # ⬅️ ВОЗВРАЩАЕМ ДЛЯ ПРОДАКШЕНА
-    # ⬇️ УБИРАЕМ volumes
-    # volumes:
-    #   - ./frontend:/app
-    #   - /app/node_modules
-    restart: always  # ⬅️ ДОБАВЛЯЕМ
+      - VITE_API_URL=http://backend:8000  # ⬅️ Важно: имя сервиса backend
+    restart: always
+    networks:
+      - musicme-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: always
     networks:
       - musicme-network
 

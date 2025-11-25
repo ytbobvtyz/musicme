@@ -1,14 +1,19 @@
-FROM node:18-alpine
+# Multi-stage build
+FROM node:18-alpine as builder
 
 WORKDIR /app
-
-# Копирование package.json и установка зависимостей
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
-
-# Копирование исходного кода
 COPY frontend/ .
+RUN npm run build
 
-# Экспорт порта и запуск
+# Production stage
+FROM node:18-alpine as production
+
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY frontend/package.json ./
+RUN npm install -g serve
+
 EXPOSE 3000
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["serve", "-s", "dist", "-l", "3000"]
