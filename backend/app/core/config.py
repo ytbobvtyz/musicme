@@ -3,8 +3,8 @@ from typing import List
 
 class Settings(BaseSettings):
     # Яндекс OAuth
-    YANDEX_CLIENT_ID: str
-    YANDEX_CLIENT_SECRET: str
+    YANDEX_CLIENT_ID: str = "not-set"
+    YANDEX_CLIENT_SECRET: str = "not-set"
     
     # JWT
     JWT_SECRET: str
@@ -14,20 +14,21 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     
-    # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000", 
-        "http://127.0.0.1:3000", 
-        "http://localhost:5173",
-        "http://193.108.115.232",
-        "https://musicme.ru",
-        "http://musicme.ru"
-    ]
-    
     # Debug mode
-    DEBUG: bool = False  # ⬅️ ДОБАВЬ ЭТУ СТРОКУ
+    DEBUG: bool = False
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
+
+# CORS выносим в отдельную переменную (не часть настроек)
+CORS_ORIGINS = [
+    "http://localhost:3000", 
+    "http://127.0.0.1:3000", 
+    "http://localhost:5173",
+    "http://193.108.115.232",
+    "https://musicme.ru",
+    "http://musicme.ru"
+]
 
 settings = Settings()
