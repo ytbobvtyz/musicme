@@ -33,6 +33,9 @@ services:
     restart: always
     networks:
       - musicme-network
+  command: >
+    sh -c "python -m app.init_database &&
+           uvicorn main:app --host 0.0.0.0 --port 8000"
 
   frontend:
     build:
@@ -40,7 +43,7 @@ services:
       dockerfile: Dockerfile.frontend
       target: production
     environment:
-      - VITE_API_URL=http://backend:8000  # ⬅️ Важно: имя сервиса backend
+      - VITE_API_URL=https://musicme.ru/api
     restart: always
     networks:
       - musicme-network

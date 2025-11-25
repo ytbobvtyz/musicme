@@ -23,3 +23,11 @@ docker-compose restart
 # Или остановить и запустить заново
 docker-compose down
 docker-compose up -d
+
+# prod:
+
+# Старт приложения 
+docker-compose -f docker-compose.prod.yml up -d --build
+
+# Пересборка фронта 
+docker-compose -f docker-compose.prod.yml build frontend --no-cache
