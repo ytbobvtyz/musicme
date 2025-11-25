@@ -34,3 +34,5 @@ docker-compose -f docker-compose.prod.yml build frontend --no-cache
 
 # Перезапускаем
 docker-compose -f docker-compose.prod.yml up -d
+
+docker logs musicme-frontend-1 --tail 5
