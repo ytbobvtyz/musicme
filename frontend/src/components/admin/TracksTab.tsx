@@ -200,14 +200,6 @@ const TracksTab = () => {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      generating: 'bg-yellow-100 text-yellow-800',
-      ready: 'bg-green-100 text-green-800',
-      error: 'bg-red-100 text-red-800'
-    }
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800'
-  }
 
   const getStatusText = (status: string) => {
     const statusMap: { [key: string]: string } = {
@@ -373,9 +365,6 @@ const TracksTab = () => {
                     Название
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Статус
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Аудио
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -402,11 +391,6 @@ const TracksTab = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {track.title || 'Без названия'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(track.status)}`}>
-                        {getStatusText(track.status)}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {track.audio_filename ? (

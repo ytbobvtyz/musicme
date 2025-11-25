@@ -61,7 +61,7 @@ const TrackPage = () => {
           </div>
         )}
 
-        {track.is_paid && track.full_url ? (
+        {track.full_url ? (
           <div>
             <h2 className="text-xl font-semibold mb-4">Полная версия</h2>
             <audio controls className="w-full">
