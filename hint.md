@@ -29,5 +29,8 @@ docker-compose up -d
 # Старт приложения 
 docker-compose -f docker-compose.prod.yml up -d --build
 
-# Пересборка фронта 
+# Пересобираем фронтенд
 docker-compose -f docker-compose.prod.yml build frontend --no-cache
+
+# Перезапускаем
+docker-compose -f docker-compose.prod.yml up -d
