@@ -32,7 +32,7 @@ async def yandex_login_redirect():
     params = {
         "response_type": "code",
         "client_id": settings.YANDEX_CLIENT_ID,
-        "redirect_uri": "http://localhost:8000/api/v1/auth/yandex/callback",
+        "redirect_uri": settings.YANDEX_REDIRECT_URL,
         "scope": "login:email login:info",
     }
     
@@ -63,7 +63,7 @@ async def yandex_callback(
     try:
         token_data = await _yandex_exchange_code_for_token(
             code, 
-            "http://localhost:8000/api/v1/auth/yandex/callback"
+            settings.YANDEX_REDIRECT_URL
         )
         access_token = token_data.get("access_token")
         
