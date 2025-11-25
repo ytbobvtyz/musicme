@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/store/authStore'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import apiClient from '@/api/client'
 
 const AuthBlock = () => {
   const { isAuthenticated, user, setToken } = useAuthStore()
@@ -18,33 +19,10 @@ const AuthBlock = () => {
     }
   }, [])
 
-  const handleAuth = async (provider: 'vk' | 'google' | 'yandex'| 'telegram') => {
-    
-    // if (provider === 'telegram') {
-    //   // Используем Telegram Login Widget
-    //   if (window.Telegram?.Login) {
-    //     window.Telegram.Login.auth(
-    //       { 
-    //         bot_id: '8202897988', // Ваш бот username без @
-    //         request_access: true 
-    //       },
-    //       (data) => {
-    //         console.log('Telegram auth data:', data)
-    //         sendTelegramAuthData(data)
-    //       }
-    //     )
-    //   } else {
-    //     // Fallback для отладки
-    //     console.log('Telegram Widget не загружен, используем fallback')
-    //     // Можно показать инструкцию для пользователя
-    //     alert('Для авторизации через Telegram:\n1. Перейдите в @musicme_ru_bot\n2. Отправьте команду /start\n3. Вернитесь на сайт')
-    //   }
-    //   return
-    // }
-    
+  const handleAuth = async (provider: 'vk' | 'google' | 'yandex' | 'telegram') => {
     if (provider === 'yandex') {
-      // Простой редирект на твой бэкенд
-      window.location.href = 'http://localhost:8000/api/v1/auth/yandex/login'
+      // Относительный путь - будет работать на любом домене
+      window.location.href = '/api/v1/auth/yandex/login'
       return
     }
     
@@ -55,14 +33,11 @@ const AuthBlock = () => {
 
   const sendTelegramAuthData = async (telegramData: any) => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(telegramData)
-      })
+      // Используем apiClient вместо прямого fetch
+      const response = await apiClient.post('/auth/telegram', telegramData)
       
-      if (response.ok) {
-        const { access_token, user } = await response.json()
+      if (response.status === 200) {
+        const { access_token, user } = response.data
         setToken(access_token)
         console.log('Успешная авторизация через Telegram')
       } else {
@@ -73,20 +48,20 @@ const AuthBlock = () => {
     }
   } 
 
+  // Компактный вид для авторизованного пользователя
   if (isAuthenticated && user) {
     return (
-      <div className="fixed top-24 left-6 z-40 animate-fade-in">
-        <div className="glass rounded-2xl p-4 shadow-xl backdrop-blur-xl">
-          <div className="flex items-center gap-3">
-            {/* Замени сложную логику аватара на простую иконку */}
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-semibold">
+      <div className="fixed top-4 right-4 z-40 animate-fade-in">
+        <div className="glass rounded-xl p-3 shadow-lg backdrop-blur-xl">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-semibold text-sm">
               {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {user.name || user.email}
+            <div className="hidden sm:block min-w-0">
+              <p className="text-xs font-semibold text-gray-900 truncate max-w-[80px]">
+                {user.name || user.email.split('@')[0]}
               </p>
-              <p className="text-xs text-gray-500">Авторизован</p>
+              <p className="text-[10px] text-gray-500">Аккаунт</p>
             </div>
           </div>
         </div>
@@ -94,58 +69,50 @@ const AuthBlock = () => {
     )
   }
 
+  // Компактный вид для неавторизованного пользователя
   return (
-    <div className="fixed top-24 left-4 md:left-6 z-40 animate-fade-in hidden md:block">
-      <div className="glass rounded-2xl p-5 shadow-xl backdrop-blur-xl min-w-[260px] max-w-[300px]">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">
-          Войти в аккаунт
-        </h3>
-        <div className="space-y-2.5">
+    <div className="fixed top-4 right-4 z-40 animate-fade-in">
+      <div className="glass rounded-xl p-3 shadow-lg backdrop-blur-xl">
+        <div className="flex flex-col gap-2">
+          {/* Компактные кнопки авторизации */}
           <button
-            onClick={() => handleAuth('vk')}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#0077FF] text-white rounded-xl font-medium hover:bg-[#0066DD] active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl"
+            onClick={() => handleAuth('yandex')}
+            className="flex items-center justify-center w-8 h-8 bg-[#FC3F1D] text-white rounded-lg font-medium hover:bg-[#E03618] active:scale-95 transition-all duration-200 shadow-md hover:shadow-lg"
+            title="Яндекс"
           >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12.785 16.241s.287-.033.435-.2c.135-.15.131-.433.131-.433s-.02-1.305.584-1.498c.595-.19 1.357.958 2.165 1.379.607.317 1.068.247 1.068.247l2.15-.031s1.122-.07.589-.956c-.044-.071-.311-.651-1.598-1.84-1.351-1.252-1.17-.526.448-1.614.988-.83 1.382-1.336 1.258-1.55-.117-.199-.841-.147-.841-.147l-2.166.013s-.16-.022-.278.05c-.115.07-.189.231-.189.231s-.338.909-.785 1.68c-.947 1.513-1.326 1.595-1.48 1.503-.36-.224-.27-.899-.27-1.38 0-1.499.227-2.123-.445-2.285-.224-.054-.388-.09-.961-.095-.734-.007-1.354.002-1.705.004-.135.013-.235.06-.305.196-.093.18-.07.557-.07.557s.133 1.573.305 2.361c.362 1.659.608 1.955.67 2.046.154.224.106.689.106.689s-.016 1.006-.239 1.193c-.235.197-.557.205-.623.205-.485.015-1.267-.129-2.369-1.089-.1-.09-.668-.639-1.38-1.968-.925-1.68-1.619-3.55-1.619-3.55s-.134-.343-.037-.527c.063-.117.285-.188.285-.188l2.208-.012s.329-.023.538.236c.219.271.713.946.713.946s.714 1.203 1.695 2.097c.822.746 1.44.978 1.608 1.083.338.214.541.166.541.593-.002.436-.004 1.14.002 1.49z"/>
-            </svg>
-            <span>ВКонтакте</span>
+            <span className="text-xs font-bold">Я</span>
           </button>
 
           <button
             onClick={() => handleAuth('google')}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-white text-gray-900 rounded-xl font-medium border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all duration-200 shadow-md hover:shadow-lg"
+            className="flex items-center justify-center w-8 h-8 bg-white text-gray-900 rounded-lg font-medium border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all duration-200 shadow-sm hover:shadow-md"
+            title="Google"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            <span>Google</span>
+            <span className="text-xs font-bold">G</span>
           </button>
 
           <button
-            onClick={() => handleAuth('yandex')}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#FC3F1D] text-white rounded-xl font-medium hover:bg-[#E03618] active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl"
+            onClick={() => handleAuth('vk')}
+            className="flex items-center justify-center w-8 h-8 bg-[#0077FF] text-white rounded-lg font-medium hover:bg-[#0066DD] active:scale-95 transition-all duration-200 shadow-md hover:shadow-lg"
+            title="ВКонтакте"
           >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12.186 0h-.745v9.103H0v.745h11.441V24h.745V9.848H24v-.745H12.186V0z"/>
-            </svg>
-            <span>Яндекс</span>
+            <span className="text-xs font-bold">VK</span>
           </button>
-          <button
+
+          {/* Телеграм кнопка - можно временно скрыть */}
+          {/* <button
             onClick={() => handleAuth('telegram')}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#0088CC] text-white rounded-xl font-medium hover:bg-[#0077B6] active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl"
+            className="flex items-center justify-center w-8 h-8 bg-[#0088CC] text-white rounded-lg font-medium hover:bg-[#0077B6] active:scale-95 transition-all duration-200 shadow-md hover:shadow-lg"
+            title="Войти через Telegram"
           >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.139c-.204-.143-.433-.214-.684-.214-.261 0-.522.071-.765.214-.61.428-1.211.867-1.812 1.306-.49.357-.979.714-1.469 1.072-.51.357-1.02.714-1.53 1.071-.306.214-.612.428-.918.643-.214.143-.408.255-.582.336-.071.04-.133.071-.184.091-.051.02-.092.031-.122.031-.051 0-.092-.02-.122-.061-.02-.04-.02-.092-.02-.153v-.356c0-.204.02-.408.051-.612.02-.204.061-.418.122-.643.061-.224.133-.459.214-.704.082-.245.173-.5.275-.765.102-.265.214-.541.336-.826.122-.286.255-.582.398-.888.143-.306.296-.622.459-.949.163-.327.337-.664.52-1.011.184-.347.377-.704.581-1.071.204-.367.418-.744.643-1.131.224-.388.459-.786.704-1.194.245-.408.5-.826.765-1.255.265-.428.54-.867.826-1.316.286-.449.582-.908.888-1.378.306-.47.622-.95.949-1.439.327-.49.664-.99 1.011-1.5.102-.143.214-.265.336-.367.122-.102.255-.184.398-.245.143-.061.296-.092.459-.092.163 0 .316.031.459.092.143.061.265.143.367.245.102.102.184.224.245.367.061.143.092.296.092.459 0 .163-.031.316-.092.459-.061.143-.143.265-.245.367-.102.102-.224.184-.367.245-.143.061-.296.092-.459.092-.163 0-.316-.031-.459-.092-.143-.061-.265-.143-.367-.245-.102-.102-.184-.224-.245-.367-.061-.143-.092-.296-.092-.459 0-.163.031-.316.092-.459.061-.143.143-.265.245-.367.102-.102.224-.184.367-.245.143-.061.296-.092.459-.092.163 0 .316.031.459.092.143.061.265.143.367.245.102.102.184.224.245.367.061.143.092.296.092.459 0 .163-.031.316-.092.459-.061.143-.143.265-.245.367-.102.102-.224.184-.367.245-.143.061-.296.092-.459.092z"/>
-            </svg>
-            <span>Telegram</span>
-          </button>
+            <span className="text-xs font-bold">T</span>
+          </button> */}
         </div>
-        <p className="text-xs text-gray-500 mt-4 text-center">
-          Войдите, чтобы сохранить заказы
-        </p>
+        
+        {/* Подсказка при наведении на весь блок */}
+        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+          Войти в аккаунт
+        </div>
       </div>
     </div>
   )

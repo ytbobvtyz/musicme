@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import AuthBlock from '@/components/AuthBlock'
 import { useExampleTracks } from '@/hooks/useExampleTracks'
 import { useTariffs } from '@/hooks/useTariffs'
 import ThemeSquareBlock from '@/components/ThemeSquareBlock'
@@ -75,10 +74,8 @@ const HomePage = () => {
 
   return (
     <div className="bg-white">
-      {/* Auth Block - Right Top */}
-      <div className="fixed top-6 right-6 z-50">
-        <AuthBlock />
-      </div>
+      {/* Auth Block - УБИРАЕМ внешний контейнер
+      <AuthBlock /> */}
       
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 pb-32">
