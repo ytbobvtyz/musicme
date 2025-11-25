@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     # Яндекс OAuth
     YANDEX_CLIENT_ID: str = "not-set"
     YANDEX_CLIENT_SECRET: str = "not-set"
+    YANDEX_REDIRECT_URL: str = "https://musicme.ru/api/v1/auth/yandex/callback"
     
     # JWT
     JWT_SECRET: str
