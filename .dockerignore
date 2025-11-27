@@ -52,3 +52,5 @@ docker-compose.yml
 Dockerfile.backend
 Dockerfile.frontend
 .dockerignore
+
+hint.md

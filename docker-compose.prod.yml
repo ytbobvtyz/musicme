@@ -27,6 +27,9 @@ services:
       - SUNO_API_KEY=${SUNO_API_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - ENVIRONMENT=production
+      - YANDEX_CLIENT_ID=${YANDEX_CLIENT_ID}           # ⬅️ ДОБАВИТЬ
+      - YANDEX_CLIENT_SECRET=${YANDEX_CLIENT_SECRET}   # ⬅️ ДОБАВИТЬ
+      - YANDEX_REDIRECT_URL=${YANDEX_REDIRECT_URL}     # ⬅️ ДОБАВИТЬ
     depends_on:
       postgres:
         condition: service_healthy
