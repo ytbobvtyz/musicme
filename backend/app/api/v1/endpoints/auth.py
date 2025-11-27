@@ -93,7 +93,7 @@ async def yandex_callback(
         token = create_token_from_user(user)
 
         # Перенаправляем на фронтенд с токеном
-        frontend_url = f"http://localhost:3000/auth/callback?token={token}"
+        frontend_url = f"{settings.FRONTEND_URL}/auth/callback?token={token}"
         return RedirectResponse(url=frontend_url)
 
     except Exception as e:

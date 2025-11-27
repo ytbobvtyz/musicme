@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+    FRONTEND_URL: str = "https://musicme.ru"
     # Database
     DATABASE_URL: str
     
