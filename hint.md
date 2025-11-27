@@ -38,6 +38,8 @@ docker-compose -f docker-compose.prod.yml up -d
 docker logs musicme-frontend-1 --tail 5
 
 ssh deploy@193.108.115.232
+Тунель для БД:
+ssh -L 5433:localhost:5432 deploy@193.108.115.232
 
 
 🚀 Памятка: Перезапуск контейнеров на сервере
@@ -143,3 +145,47 @@ cd /opt/musicme && git pull && docker-compose -f docker-compose.prod.yml build -
 
 # Проверка здоровья
 curl https://musicme.ru/api/v1/health && echo " | " && curl -I https://musicme.ru
+
+
+🚀🚀🚀 ОТКРЫВАЕМ БД
+
+# На сервере:
+ssh deploy@193.108.115.232
+cd /opt/musicme
+
+# Временно открываем порт PostgreSQL
+docker-compose -f docker-compose.prod.yml stop postgres
+docker run -d --name postgres-temp -p 5432:5432 \
+  -e POSTGRES_DB=mysong \
+  -e POSTGRES_USER=mysong_user \
+  -e POSTGRES_PASSWORD=mysong_password \
+  -v musicme_postgres_data:/var/lib/postgresql/data \
+  postgres:15
+
+# Теперь на ноутбуке SSH туннель будет работать:
+ssh -L 5434:localhost:5432 deploy@193.108.115.232
+
+
+🚀🚀🚀 Сброс порта:
+# Найди PID процесса на порту 5433
+sudo lsof -i :5433
+
+# Или используй netstat
+sudo netstat -tulpn | grep 5433
+
+# Или ss
+sudo ss -tulpn | grep 5433
+
+sudo kill -9 1234
+
+
+🚀🚀🚀 ЛОГИ НА СЕРВЕРЕ
+
+# Основные логи контейнера
+docker logs musicme-postgres-1
+
+# Логи в реальном времени
+docker logs -f musicme-postgres-1
+
+# Последние 50 строк
+docker logs --tail 50 musicme-postgres-1
