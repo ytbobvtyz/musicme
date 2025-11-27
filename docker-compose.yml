@@ -48,7 +48,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile.frontend.dev
     ports:
       - "3000:3000"
     # ⬇️ УБИРАЕМ VITE_API_URL - она не нужна с прокси
