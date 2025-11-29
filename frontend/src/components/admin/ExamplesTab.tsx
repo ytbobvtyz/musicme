@@ -1,6 +1,14 @@
+// src/components/admin/ExamplesTab.tsx
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { ExampleTrack } from '@/types/exampleTrack'
+import { getThemes } from '@/api/themes'
+import { getGenres } from '@/api/genres'
+import { 
+  getExampleTracks, 
+  uploadExampleTrack, 
+  deleteExampleTrack 
+} from '@/api/exampleTracks' // ← СОЗДАДИМ ЭТОТ ФАЙЛ
 
 const ExamplesTab = () => {
   const { token } = useAuthStore()
@@ -9,10 +17,10 @@ const ExamplesTab = () => {
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [uploading, setUploading] = useState(false)
   
-  // Форма загрузки - ОБНОВЛЯЕМ НА UUID
+  // Форма загрузки
   const [title, setTitle] = useState('')
-  const [genreId, setGenreId] = useState('')  // ← МЕНЯЕМ НА ID
-  const [themeId, setThemeId] = useState('')  // ← МЕНЯЕМ НА ID
+  const [genreId, setGenreId] = useState('')
+  const [themeId, setThemeId] = useState('')
   const [description, setDescription] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [themes, setThemes] = useState<any[]>([])
@@ -25,13 +33,12 @@ const ExamplesTab = () => {
 
   const fetchThemesAndGenres = async () => {
     try {
-      const [themesRes, genresRes] = await Promise.all([
-        fetch('http://localhost:8000/api/v1/themes'),
-        fetch('http://localhost:8000/api/v1/genres')
+      const [themesData, genresData] = await Promise.all([
+        getThemes(),
+        getGenres()
       ])
-      
-      if (themesRes.ok) setThemes(await themesRes.json())
-      if (genresRes.ok) setGenres(await genresRes.json())
+      setThemes(themesData)
+      setGenres(genresData)
     } catch (error) {
       console.error('Error fetching themes/genres:', error)
     }
@@ -39,14 +46,8 @@ const ExamplesTab = () => {
 
   const fetchExampleTracks = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/admin/example-tracks', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setTracks(data)
-      }
+      const data = await getExampleTracks(token!)
+      setTracks(data)
     } catch (error) {
       console.error('Error fetching example tracks:', error)
     } finally {
@@ -61,70 +62,51 @@ const ExamplesTab = () => {
     }
 
     setUploading(true)
-    
-    const formData = new FormData()
-    formData.append('file', selectedFile)
-    formData.append('title', title)
-    formData.append('genre_id', genreId)  // ← МЕНЯЕМ НА ID
-    formData.append('theme_id', themeId)  // ← МЕНЯЕМ НА ID
-    if (description) {
-      formData.append('description', description)
-    }
 
     try {
-      const response = await fetch(
-        'http://localhost:8000/api/v1/admin/example-tracks/upload',
-        {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
-        }
+      await uploadExampleTrack(
+        token!,
+        selectedFile,
+        title,
+        genreId,
+        themeId,
+        description
       )
-
-      if (response.ok) {
-        // Сбрасываем форму
-        setTitle('')
-        setGenreId('')
-        setThemeId('')
-        setDescription('')
-        setSelectedFile(null)
-        setShowUploadForm(false)
-        
-        fetchExampleTracks()
-        alert('Пример трека успешно загружен!')
-      } else {
-        const error = await response.text()
-        alert(`Ошибка загрузки: ${error}`)
-      }
-    } catch (error) {
+      
+      // Сбрасываем форму
+      setTitle('')
+      setGenreId('')
+      setThemeId('')
+      setDescription('')
+      setSelectedFile(null)
+      setShowUploadForm(false)
+      
+      fetchExampleTracks()
+      alert('Пример трека успешно загружен!')
+    } catch (error: any) {
       console.error('Error uploading example track:', error)
-      alert('Ошибка при загрузке примера трека')
+      alert(error.message || 'Ошибка при загрузке примера трека')
     } finally {
       setUploading(false)
     }
   }
 
-  const deleteExampleTrack = async (trackId: string) => {
+  const handleDelete = async (trackId: string) => {
     if (!confirm('Удалить этот пример трека?')) return
 
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/admin/example-tracks/${trackId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-
-      if (response.ok) {
-        fetchExampleTracks()
-        alert('Пример трека удален')
-      }
-    } catch (error) {
+      await deleteExampleTrack(token!, trackId)
+      fetchExampleTracks()
+      alert('Пример трека удален')
+    } catch (error: any) {
       console.error('Error deleting example track:', error)
+      alert(error.message || 'Ошибка при удалении')
     }
+  }
+
+  
+  const getAudioUrl = (track: ExampleTrack) => {
+    return `/api/v1/admin/example-tracks/${track.id}/audio` // ← ОТНОСИТЕЛЬНЫЙ ПУТЬ
   }
 
   if (loading) {
@@ -288,7 +270,7 @@ const ExamplesTab = () => {
                         <div className="flex items-center space-x-2">
                         <audio controls className="h-8">
                             <source 
-                            src={`http://localhost:8000/api/v1/admin/example-tracks/${track.id}/audio`} 
+                            src={getAudioUrl(track)}
                             type="audio/mpeg" 
                             />
                             Ваш браузер не поддерживает аудио элементы.
@@ -305,7 +287,7 @@ const ExamplesTab = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
-                      onClick={() => deleteExampleTrack(track.id)}
+                      onClick={() => handleDelete(track.id)}
                       className="text-red-600 hover:text-red-900"
                     >
                       Удалить
