@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://musicme.ru/'
+const API_URL = import.meta.env.VITE_API_URL || 'https://musicme.ru'
 
 const apiClient = axios.create({
   baseURL: `${API_URL}/api/v1`,
