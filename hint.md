@@ -191,3 +191,14 @@ docker logs -f musicme-backend-1
 # Последние 50 строк
 docker logs --tail 50 musicme-postgres-1
 
+🚀🚀🚀 Обновляем права пользователя
+
+docker-compose -f docker-compose.prod.yml exec postgres psql -U mysong_user -d mysong -c "
+UPDATE users 
+SET is_admin = true, is_producer = true 
+WHERE email = 'ytbob@yandex.ru';
+
+-- Проверяем что обновилось
+SELECT email, is_admin, is_producer FROM users WHERE email = 'ytbob@yandex.ru';
+"
+
