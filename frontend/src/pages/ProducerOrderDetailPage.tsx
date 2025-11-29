@@ -15,6 +15,7 @@ import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { OrderDetail } from '@/types/order'
 import { Track } from '@/types/track'
+import { getTrackAudioUrl } from '@/api/tracks'
 
 // Конфигурация действий по статусам
 const STATUS_ACTIONS = {
@@ -193,7 +194,7 @@ const ProducerOrderDetailPage = () => {
 
   const getTrackAudioUrl = (track: any) => {
     if (track.audio_filename) {
-      return `/api/v1/tracks/${track.id}/audio`  // ← ОТНОСИТЕЛЬНЫЙ ПУТЬ
+      return getTrackAudioUrl(track.id)
     }
     return track.preview_url || track.full_url
   }

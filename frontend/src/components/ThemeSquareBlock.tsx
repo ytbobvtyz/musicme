@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ExampleTrack } from '@/types/exampleTrack'
+import { getExampleTrackCoverUrl, getExampleTrackAudioUrl } from '@/api/exampleTracks'
 
 interface ThemeSquareBlockProps {
   themeName: string
@@ -35,7 +36,7 @@ const ThemeSquareBlock = ({
   }
 
   const getTrackCoverUrl = (track: ExampleTrack) => {
-    return `http://localhost:8000/api/v1/example-tracks/${track.id}/cover`
+    return getExampleTrackCoverUrl(track.id)
   }
 
   return (
@@ -101,7 +102,7 @@ const ThemeSquareBlock = ({
             className="w-full rounded-lg [&::-webkit-media-controls-panel]:bg-white [&::-webkit-media-controls-panel]:rounded-lg"
           >
             <source 
-              src={`http://localhost:8000/api/v1/example-tracks/${currentTrack.id}/audio`} 
+              src={getExampleTrackAudioUrl(currentTrack.id)}
               type="audio/mpeg" 
             />
             Ваш браузер не поддерживает аудио элементы.

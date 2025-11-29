@@ -1,32 +1,29 @@
+// src/hooks/useExampleTracks.ts
 import { useState, useEffect } from 'react'
 import { ExampleTrack } from '@/types/exampleTrack'
+import { getPublicExampleTracks } from '@/api/exampleTracks'
 
 export const useExampleTracks = () => {
   const [tracks, setTracks] = useState<ExampleTrack[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchExampleTracks()
-  }, [])
-
   const fetchExampleTracks = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/example-tracks')
-      
-      if (response.ok) {
-        const data = await response.json()
-        setTracks(data)
-      } else {
-        setError('Ошибка загрузки примеров')
-      }
-    } catch (error) {
-      console.error('Error fetching example tracks:', error)
-      setError('Не удалось загрузить примеры')
+      setError(null)
+      const data = await getPublicExampleTracks()
+      setTracks(data)
+    } catch (err: any) {
+      console.error('Error fetching example tracks:', err)
+      setError(err.message || 'Не удалось загрузить примеры')
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchExampleTracks()
+  }, [])
 
   // Группировка треков по темам
   const tracksByTheme = tracks.reduce((acc, track) => {

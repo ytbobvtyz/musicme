@@ -41,3 +41,18 @@ export const deleteExampleTrack = async (token: string, trackId: string): Promis
     headers: { 'Authorization': `Bearer ${token}` }
   })
 }
+
+// Публичные примеры треков (без авторизации)
+export const getPublicExampleTracks = async (): Promise<ExampleTrack[]> => {
+  const response = await apiClient.get('/example-tracks')
+  return response.data
+}
+
+// URL хелперы для картинок и аудио
+export const getExampleTrackCoverUrl = (trackId: string) => {
+  return `/api/v1/example-tracks/${trackId}/cover`
+}
+
+export const getExampleTrackAudioUrl = (trackId: string) => {
+  return `/api/v1/example-tracks/${trackId}/audio`
+}
