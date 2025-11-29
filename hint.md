@@ -186,6 +186,8 @@ docker logs musicme-postgres-1
 
 # Логи в реальном времени
 docker logs -f musicme-postgres-1
+docker logs -f musicme-backend-1
 
 # Последние 50 строк
 docker logs --tail 50 musicme-postgres-1
+
