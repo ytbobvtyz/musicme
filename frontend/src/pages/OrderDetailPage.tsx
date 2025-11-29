@@ -14,7 +14,7 @@ import { getRevisionComments, RevisionComment } from '@/api/revision'
 import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import PaymentFAQ from '@/components/PaymentFAQ'
 import { OrderDetail } from '@/types/order'
-import { getTrackAudioUrl } from '@/api/tracks'
+import { getTrackAudioURL } from '@/api/tracks'
 
 const OrderDetailPage = () => {
   const { orderId } = useParams<{ orderId: string }>()
@@ -60,7 +60,7 @@ const OrderDetailPage = () => {
   // Функции для работы с треками
   const getTrackAudioUrl = (track: any) => {
     if (track.audio_filename) {
-      return getTrackAudioUrl(track.id)
+      return getTrackAudioURL(track.id)
     }
     return track.preview_url || track.full_url
   }

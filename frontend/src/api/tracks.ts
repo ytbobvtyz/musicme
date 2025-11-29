@@ -22,6 +22,6 @@ export const updateTrack = async (trackId: string, updateData: any) => {
   }
 }
 
-export const getTrackAudioUrl = (trackId: string) => {
+export const getTrackAudioURL = (trackId: string) => {
   return `${apiClient.defaults.baseURL}/tracks/${trackId}/audio`
 }
