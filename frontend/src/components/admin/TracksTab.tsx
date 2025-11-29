@@ -1,7 +1,15 @@
+// components/admin/TracksTab.tsx
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { Track } from '@/types/track'
-
+import { 
+  getAdminOrders, 
+  getAdminTracksSimple,
+  uploadAdminTrack,
+  deleteAdminTrack,
+  getTrackAudioPublicUrl 
+} from '@/api/admin'
+import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 
 const TracksTab = () => {
   const { token } = useAuthStore()
@@ -14,6 +22,7 @@ const TracksTab = () => {
   const [trackTitle, setTrackTitle] = useState('')
   const [uploading, setUploading] = useState(false)
   const [ordersLoading, setOrdersLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTracks()
@@ -22,19 +31,13 @@ const TracksTab = () => {
   // Загружаем заказы при открытии формы
   const fetchOrdersForForm = async () => {
     setOrdersLoading(true)
+    setError(null)
     try {
-      const response = await fetch('http://localhost:8000/api/v1/admin/orders', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setOrders(data)
-      }
-    } catch (error) {
+      const data = await getAdminOrders()
+      setOrders(data)
+    } catch (error: any) {
       console.error('Error fetching orders:', error)
+      setError('Ошибка загрузки заказов')
     } finally {
       setOrdersLoading(false)
     }
@@ -42,71 +45,44 @@ const TracksTab = () => {
 
   const handleShowAddForm = () => {
     setShowAddForm(true)
-    fetchOrdersForForm() // Загружаем заказы когда открываем форму
+    fetchOrdersForForm()
   }
 
   const fetchTracks = async () => {
     try {
+      setError(null)
       console.log("Starting data fetch...")
       
-      // Используем простой эндпоинт для отладки
-      const tracksResponse = await fetch('http://localhost:8000/api/v1/admin/tracks-debug-simple', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      // Используем API модули вместо прямых fetch
+      const [tracksData, ordersData] = await Promise.all([
+        getAdminTracksSimple(),
+        getAdminOrders()
+      ])
+  
+      console.log('=== TRACKS DATA ===')
+      console.log('Tracks:', tracksData)
+      console.log('=== ORDERS DATA ===') 
+      console.log('Orders:', ordersData)
+
+      // Обогащаем треки данными заказов
+      const ordersMap = new Map()
+      ordersData.forEach((order: any) => {
+        ordersMap.set(order.id, order)
       })
-  
-      console.log("Tracks response status:", tracksResponse.status)
-  
-      if (tracksResponse.ok) {
-        const tracksData = await tracksResponse.json()
-        
-        console.log('=== SIMPLE TRACKS DATA ===')
-        console.log('Tracks:', tracksData)
-  
-        // Проверяем что tracksData - массив, а не объект с ошибкой
-        if (Array.isArray(tracksData)) {
-          // Загружаем заказы отдельно
-          const ordersResponse = await fetch('http://localhost:8000/api/v1/admin/orders', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
-  
-          if (ordersResponse.ok) {
-            const ordersData = await ordersResponse.json()
-            
-            console.log('=== ORDERS DATA ===')
-            console.log('Orders:', ordersData)
-  
-            // Создаем мапу заказов
-            const ordersMap = new Map()
-            ordersData.forEach((order: any) => {
-              ordersMap.set(order.id, order)
-            })
-  
-            // Обогащаем треки данными заказов
-            const enrichedTracks = tracksData.map((track: any) => ({
-              ...track,
-              order: ordersMap.get(track.order_id) || null
-            }))
-  
-            console.log('=== ENRICHED TRACKS ===')
-            console.log('Enriched tracks:', enrichedTracks)
-  
-            setTracks(enrichedTracks)
-            setOrders(ordersData)
-          } else {
-            // Если заказы не загрузились, используем только треки
-            setTracks(tracksData)
-          }
-        } else {
-          // Если tracksData не массив, показываем ошибку
-          console.error('Tracks data is not array:', tracksData)
-          setTracks([])
-        }
-      } else {
-        console.error('Tracks response not ok:', tracksResponse.status)
-        setTracks([])
-      }
-    } catch (error) {
+
+      const enrichedTracks = tracksData.map((track: any) => ({
+        ...track,
+        order: ordersMap.get(track.order_id) || null
+      }))
+
+      console.log('=== ENRICHED TRACKS ===')
+      console.log('Enriched tracks:', enrichedTracks)
+
+      setTracks(enrichedTracks)
+      setOrders(ordersData)
+    } catch (error: any) {
       console.error('Error fetching data:', error)
+      setError('Ошибка загрузки данных')
       setTracks([])
     } finally {
       setLoading(false)
@@ -125,51 +101,30 @@ const TracksTab = () => {
     }
 
     setUploading(true)
-
-    const formData = new FormData()
-    formData.append('file', selectedFile)
-    if (trackTitle.trim()) {
-      formData.append('title', trackTitle.trim())
-    }
+    setError(null)
 
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/admin/orders/${orderId}/tracks/upload`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            // Не устанавливай Content-Type - браузер сделает это сам
-          },
-          body: formData
-        }
-      )
-
-      console.log('Response status:', response.status)
-      
-      if (response.ok) {
-        // Сбрасываем форму
-        setSelectedFile(null)
-        setTrackTitle('')
-        setSelectedOrder('')
-        setShowAddForm(false)
-        
-        // Обновляем список треков
-        fetchTracks()
-        alert('Трек успешно загружен!')
-      } else {
-        const errorText = await response.text()
-        console.error('Upload error:', errorText)
-        try {
-          const errorData = JSON.parse(errorText)
-          alert(`Ошибка: ${errorData.detail || 'Неизвестная ошибка'}`)
-        } catch {
-          alert(`Ошибка: ${errorText || `HTTP ${response.status}`}`)
-        }
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      if (trackTitle.trim()) {
+        formData.append('title', trackTitle.trim())
       }
-    } catch (error) {
+
+      await uploadAdminTrack(orderId, formData)
+      
+      // Сбрасываем форму
+      setSelectedFile(null)
+      setTrackTitle('')
+      setSelectedOrder('')
+      setShowAddForm(false)
+      
+      // Обновляем список треков
+      await fetchTracks()
+      alert('Трек успешно загружен!')
+    } catch (error: any) {
       console.error('Error uploading track:', error)
-      alert('Ошибка сети при загрузке трека')
+      setError(error.message || 'Ошибка загрузки трека')
+      alert(error.message || 'Ошибка загрузки трека')
     } finally {
       setUploading(false)
     }
@@ -178,36 +133,17 @@ const TracksTab = () => {
   const deleteTrack = async (trackId: string) => {
     if (!confirm('Удалить этот трек?')) return
 
+    setError(null)
+
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/admin/tracks/${trackId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-
-      if (response.ok) {
-        fetchTracks() // Обновляем список
-        alert('Трек удален')
-      } else {
-        alert('Ошибка при удалении трека')
-      }
-    } catch (error) {
+      await deleteAdminTrack(trackId)
+      await fetchTracks()
+      alert('Трек удален')
+    } catch (error: any) {
       console.error('Error deleting track:', error)
+      setError(error.message || 'Ошибка удаления трека')
+      alert(error.message || 'Ошибка удаления трека')
     }
-  }
-
-
-  const getStatusText = (status: string) => {
-    const statusMap: { [key: string]: string } = {
-      generating: 'Генерируется',
-      ready: 'Готов',
-      error: 'Ошибка'
-    }
-    return statusMap[status] || status
   }
 
   const filteredTracks = selectedOrder 
@@ -215,7 +151,12 @@ const TracksTab = () => {
     : tracks
 
   if (loading) {
-    return <div className="text-center py-8">Загрузка треков...</div>
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Загрузка треков...</p>
+      </div>
+    )
   }
 
   return (
@@ -225,11 +166,20 @@ const TracksTab = () => {
         
         <button
           onClick={handleShowAddForm}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
+          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
         >
           + Загрузить трек
         </button>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="text-red-600 mr-2">⚠️</div>
+            <p className="text-red-800">{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Форма загрузки трека */}
       {showAddForm && (
@@ -239,7 +189,10 @@ const TracksTab = () => {
             
             <div className="space-y-4">
               {ordersLoading ? (
-                <div className="text-center py-4">Загрузка заказов...</div>
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-600">Загрузка заказов...</p>
+                </div>
               ) : (
                 <>
                   <select
@@ -250,7 +203,7 @@ const TracksTab = () => {
                     <option value="">Выберите заказ</option>
                     {orders.map((order) => (
                       <option key={order.id} value={order.id}>
-                        {order.theme?.name || 'Неизвестно'} - {order.recipient_name} ({order.status})
+                        {order.theme?.name || 'Неизвестно'} - {order.recipient_name} ({getStatusText(order.status)})
                       </option>
                     ))}
                   </select>
@@ -301,14 +254,14 @@ const TracksTab = () => {
                         setSelectedFile(null)
                         setTrackTitle('')
                       }}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                      className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
                     >
                       Отмена
                     </button>
                     <button
                       onClick={() => handleFileUpload(selectedOrder)}
                       disabled={!selectedOrder || !selectedFile || uploading}
-                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
                     >
                       {uploading ? 'Загрузка...' : 'Загрузить'}
                     </button>
@@ -328,12 +281,12 @@ const TracksTab = () => {
         <select 
           value={selectedOrder}
           onChange={(e) => setSelectedOrder(e.target.value)}
-          className="px-4 py-2 border rounded-lg w-full max-w-xs"
+          className="px-4 py-2 border rounded-lg w-full max-w-xs transition-colors"
         >
           <option value="">Все заказы</option>
           {orders.map((order) => (
             <option key={order.id} value={order.id}>
-              {order.theme?.name || 'Неизвестно'} - {order.recipient_name} ({order.status})
+              {order.theme?.name || 'Неизвестно'} - {order.recipient_name} ({getStatusText(order.status)})
             </option>
           ))}
         </select>
@@ -399,10 +352,9 @@ const TracksTab = () => {
                                 controls 
                                 className="h-8"
                                 onError={(e) => console.error('Audio error for track:', track.id, e)}
-                                onCanPlay={() => console.log('Audio can play:', track.id)}
                             >
                                 <source 
-                                src={`http://localhost:8000/api/v1/admin/tracks/${track.id}/audio-public`}
+                                src={getTrackAudioPublicUrl(track.id)}
                                 type={track.audio_mimetype || "audio/mpeg"} 
                                 />
                                 Ваш браузер не поддерживает аудио элементы.
@@ -420,7 +372,7 @@ const TracksTab = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => deleteTrack(track.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-red-600 hover:text-red-900 transition-colors"
                       >
                         Удалить
                       </button>

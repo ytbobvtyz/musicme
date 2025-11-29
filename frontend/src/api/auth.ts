@@ -20,3 +20,12 @@ export const getCurrentUser = async () => {
   return response.data
 }
 
+export const getOAuthUrl = (provider: string) => {
+  return `/api/v1/auth/${provider}/login`
+}
+
+// Или если нужно полный URL для редиректа
+export const getOAuthRedirectUrl = (provider: string) => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'https://musicme.ru'
+  return `${baseUrl}/api/v1/auth/${provider}/login`
+}

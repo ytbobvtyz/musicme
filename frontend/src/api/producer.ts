@@ -1,5 +1,6 @@
-import { Order } from '@/types/order'
+// src/api/producer.ts
 import apiClient from './client'
+import { Order } from '@/types/order'
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token')
@@ -10,67 +11,27 @@ const getAuthHeaders = () => {
 }
 
 export const getProducerOrders = async (orderStatus?: string): Promise<Order[]> => {
-  // ИСПРАВЛЯЕМ параметр с order_status на orderStatus
-  const params = orderStatus ? `?order_status=${orderStatus}` : ''  // ← теперь правильно!
-  const response = await fetch(`/api/v1/producer/orders${params}`, {
-    headers: getAuthHeaders()
+  const response = await apiClient.get('/producer/orders', { 
+    params: orderStatus ? { order_status: orderStatus } : {} 
   })
-  
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error('Error fetching producer orders:', errorText)
-    throw new Error(`Ошибка загрузки заказов: ${response.status}`)
-  }
-  
-  return response.json()
+  return response.data
 }
 
 export const updateOrderStatus = async (orderId: string, status: string) => {
-  const response = await fetch(`/api/v1/producer/orders/${orderId}/status`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ status })
-  })
-  if (!response.ok) throw new Error('Ошибка обновления статуса')
-  return response.json()
+  const response = await apiClient.put(`/producer/orders/${orderId}/status`, { status })
+  return response.data
 }
 
-// src/api/producer.ts
 export const uploadTrack = async (formData: FormData) => {
-  const token = localStorage.getItem('token')
-  const response = await fetch('/api/v1/producer/tracks', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    body: formData
+  const response = await apiClient.post('/producer/tracks', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
-  
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Ошибка загрузки трека: ${response.status}`)
-  }
-  
-  return response.json()
+  return response.data
 }
 
 export const updateTrack = async (trackId: string, updateData: any) => {
-  const token = localStorage.getItem('token')
-  const response = await fetch(`/api/v1/producer/tracks/${trackId}`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(updateData)
-  })
-  
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Ошибка обновления трека: ${response.status}`)
-  }
-  
-  return response.json()
+  const response = await apiClient.put(`/producer/tracks/${trackId}`, updateData)
+  return response.data
 }
 
 export const addProducerComment = async (orderId: string, comment: string) => {

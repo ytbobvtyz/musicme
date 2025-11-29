@@ -1,23 +1,31 @@
-// components/admin/OrdersTab.tsx - ОБНОВЛЯЕМ КОД
+// components/admin/OrdersTab.tsx
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { Order, OrderDisplay } from '@/types/order'
-import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 import { User } from '@/types/user'
+import { 
+  getAdminOrders, 
+  getProducers, 
+  assignProducerToOrder, 
+  updateOrderStatusAdmin, 
+  deleteOrderAdmin,
+  confirmPaymentReceived 
+} from '@/api/admin'
+import { getStatusText, getStatusClasses } from '@/utils/statusUtils'
 
-// Обновляем статусы для нового workflow
+// Статусы для нового workflow
 const statusOptions = [
   { value: 'draft', label: 'Черновики' },
   { value: 'waiting_interview', label: 'Ожидают интервью' },
   { value: 'in_progress', label: 'В работе' },
-  { value: 'ready_for_review', label: 'Готовы для проверки' }, // ⬅️ НОВЫЙ
-  { value: 'payment_pending', label: 'Ожидают проверки оплаты' }, // ⬅️ НОВЫЙ
-  { value: 'ready_for_final_review', label: 'Готовы для финальной проверки' }, // ⬅️ НОВЫЙ
+  { value: 'ready_for_review', label: 'Готовы для проверки' },
+  { value: 'payment_pending', label: 'Ожидают проверки оплаты' },
+  { value: 'ready_for_final_review', label: 'Готовы для финальной проверки' },
   { value: 'completed', label: 'Завершены' },
   { value: 'cancelled', label: 'Отменены' }
 ]
 
-// Обновляем пресет фильтры
+// Пресет фильтры
 const presetFilters = [
   { 
     label: 'Все активные', 
@@ -44,7 +52,7 @@ const presetFilters = [
     value: ['ready_for_final_review'] 
   },
   { 
-    label: 'Отменены пользователем или админом', 
+    label: 'Отменены', 
     value: ['cancelled']
   }
 ]
@@ -63,9 +71,9 @@ const OrdersTab = () => {
   const [loading, setLoading] = useState(true)
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
   const [producers, setProducers] = useState<User[]>([])
-  const [assigning, setAssigning] = useState<string | null>(null) // ⬅️ НОВЫЙ
+  const [assigning, setAssigning] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchOrders()
@@ -85,20 +93,14 @@ const OrdersTab = () => {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/admin/orders', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const data: Order[] = await response.json()
-        const displayOrders = data.map(orderToDisplay)
-        setAllOrders(displayOrders)
-        setOrders(displayOrders)
-      }
-    } catch (error) {
+      setError(null)
+      const data = await getAdminOrders()
+      const displayOrders = data.map(orderToDisplay)
+      setAllOrders(displayOrders)
+      setOrders(displayOrders)
+    } catch (error: any) {
       console.error('Error fetching orders:', error)
+      setError('Ошибка загрузки заказов')
     } finally {
       setLoading(false)
     }
@@ -106,93 +108,60 @@ const OrdersTab = () => {
 
   const fetchProducers = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/admin/producers', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setProducers(data)
-      }
-    } catch (error) {
+      const data = await getProducers()
+      setProducers(data)
+    } catch (error: any) {
       console.error('Error fetching producers:', error)
+      setError('Ошибка загрузки продюсеров')
     }
   }
 
-  // ⬇️⬇️⬇️ ОБНОВЛЯЕМ ФУНКЦИЮ НАЗНАЧЕНИЯ ПРОДЮСЕРА ⬇️⬇️⬇️
   const assignProducer = async (orderId: string, producerId: string) => {
     if (!producerId) {
       alert('Пожалуйста, выберите продюсера')
       return
     }
-  
+
     setAssigning(orderId)
-    console.log('🔍 Frontend: Assigning producer', { orderId, producerId })
+    setError(null)
     
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/admin/orders/${orderId}/assign`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ producer_id: producerId })
-        }
-      )
-  
-      console.log('🔍 Frontend: Response status', response.status)
+      console.log('🔍 Frontend: Assigning producer', { orderId, producerId })
+      await assignProducerToOrder(orderId, producerId)
       
-      if (response.ok) {
-        const result = await response.json()
-        console.log('🔍 Frontend: Success response', result)
-        
-        alert(result.message || 'Продюсер успешно назначен')
-        await fetchOrders() // Перезагружаем данные
-        
-        // Автоматически меняем статус на IN_PROGRESS если заказ был в READY_FOR_REVIEW
-        const order = allOrders.find(o => o.id === orderId)
-        if (order && order.status === 'ready_for_review') {
-          await updateOrderStatus(orderId, 'in_progress')
-        }
-      } else {
-        const errorText = await response.text()
-        console.error('🔍 Frontend: Error response', errorText)
-        alert(`Ошибка: ${response.status} - ${errorText}`)
+      alert('Продюсер успешно назначен')
+      await fetchOrders()
+      
+      // Автоматически меняем статус на IN_PROGRESS если заказ был в READY_FOR_REVIEW
+      const order = allOrders.find(o => o.id === orderId)
+      if (order && order.status === 'ready_for_review') {
+        await updateOrderStatus(orderId, 'in_progress')
       }
-    } catch (error) {
-      console.error('🔍 Frontend: Fetch error', error)
-      alert('Ошибка при назначении продюсера')
+    } catch (error: any) {
+      console.error('🔍 Frontend: Assign error', error)
+      setError(error.message || 'Ошибка при назначении продюсера')
+      alert(error.message || 'Ошибка при назначении продюсера')
     } finally {
       setAssigning(null)
     }
   }
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    setError(null)
+    
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/admin/orders/${orderId}/status?status=${newStatus}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
+      await updateOrderStatusAdmin(orderId, newStatus)
+      
+      // Обновляем локальное состояние
+      const updatedOrders = allOrders.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
       )
-
-      if (response.ok) {
-        // Обновляем локальное состояние
-        const updatedOrders = allOrders.map(order => 
-          order.id === orderId ? { ...order, status: newStatus } : order
-        )
-        setAllOrders(updatedOrders)
-        alert(`Статус заказа изменен на: ${getStatusText(newStatus)}`)
-      }
-    } catch (error) {
+      setAllOrders(updatedOrders)
+      alert(`Статус заказа изменен на: ${getStatusText(newStatus)}`)
+    } catch (error: any) {
       console.error('Error updating order status:', error)
-      alert('Ошибка при изменении статуса')
+      setError(error.message || 'Ошибка при изменении статуса')
+      alert(error.message || 'Ошибка при изменении статуса')
     }
   }
 
@@ -202,30 +171,38 @@ const OrdersTab = () => {
     }
 
     setDeleting(orderId)
+    setError(null)
+    
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/admin/orders/${orderId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-
-      if (response.ok) {
-        const updatedAllOrders = allOrders.filter(order => order.id !== orderId)
-        setAllOrders(updatedAllOrders)
-        alert('Заказ успешно удален')
-      } else {
-        const error = await response.text()
-        alert(`Ошибка при удалении заказа: ${error}`)
-      }
-    } catch (error) {
+      await deleteOrderAdmin(orderId)
+      
+      const updatedAllOrders = allOrders.filter(order => order.id !== orderId)
+      setAllOrders(updatedAllOrders)
+      alert('Заказ успешно удален')
+    } catch (error: any) {
       console.error('Error deleting order:', error)
-      alert('Ошибка при удалении заказа')
+      setError(error.message || 'Ошибка при удалении заказа')
+      alert(error.message || 'Ошибка при удалении заказа')
     } finally {
       setDeleting(null)
+    }
+  }
+
+  const handlePaymentConfirmation = async (orderId: string) => {
+    if (!confirm('Подтвердить, что оплата получена и можно выкладывать полную версию?')) {
+      return
+    }
+
+    setError(null)
+    
+    try {
+      await confirmPaymentReceived(orderId)
+      alert('Оплата подтверждена! Заказ переведен в статус "Оплачен"')
+      await fetchOrders()
+    } catch (error: any) {
+      console.error('Error confirming payment:', error)
+      setError(error.message || 'Ошибка при подтверждении оплаты')
+      alert(error.message || 'Ошибка при подтверждении оплаты')
     }
   }
 
@@ -245,38 +222,13 @@ const OrdersTab = () => {
     setSelectedStatuses([])
   }
 
-  // ⬇️⬇️⬇️ НОВАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ОПЛАТЫ ⬇️⬇️⬇️
-  const confirmPaymentReceived = async (orderId: string) => {
-    if (!confirm('Подтвердить, что оплата получена и можно выкладывать полную версию?')) {
-      return
-    }
-
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/v1/admin/orders/${orderId}/confirm-payment-received`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      )
-
-      if (response.ok) {
-        alert('Оплата подтверждена! Заказ переведен в статус "Оплачен"')
-        await fetchOrders()
-      } else {
-        const error = await response.text()
-        alert(`Ошибка: ${error}`)
-      }
-    } catch (error) {
-      console.error('Error confirming payment:', error)
-      alert('Ошибка при подтверждении оплаты')
-    }
-  }
-
   if (loading) {
-    return <div className="text-center py-8">Загрузка заказов...</div>
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Загрузка заказов...</p>
+      </div>
+    )
   }
 
   return (
@@ -288,8 +240,17 @@ const OrdersTab = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="text-red-600 mr-2">⚠️</div>
+            <p className="text-red-800">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Статистика по статусам */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-blue-50 p-4 rounded-lg">
           <div className="text-2xl font-bold text-blue-600">
             {allOrders.filter(o => ['draft', 'ready_for_review'].includes(o.status)).length}
@@ -344,7 +305,7 @@ const OrdersTab = () => {
               <button
                 key={index}
                 onClick={() => applyPresetFilter(filter.value)}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-full hover:bg-gray-50"
+                className="px-3 py-1 text-sm border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
               >
                 {filter.label}
               </button>
@@ -440,8 +401,8 @@ const OrdersTab = () => {
                     {order.status === 'payment_pending' && (
                       <div className="mt-1">
                         <button
-                          onClick={() => confirmPaymentReceived(order.id)}
-                          className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                          onClick={() => handlePaymentConfirmation(order.id)}
+                          className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors"
                         >
                           Подтвердить оплату
                         </button>
@@ -475,20 +436,17 @@ const OrdersTab = () => {
                       onChange={(e) => updateOrderStatus(order.id, e.target.value)}
                       className="text-sm border rounded px-2 py-1 w-full"
                     >
-                      <option value="draft">Черновик</option>
-                      <option value="waiting_interview">Ожидает интервью</option>
-                      <option value="in_progress">В работе</option>
-                      <option value="ready_for_review">Готов для проверки</option>
-                      <option value="payment_pending">Ожидает проверки оплаты</option>
-                      <option value="ready_for_final_review">Готов для финальной проверки</option>
-                      <option value="completed">Завершен</option>
-                      <option value="cancelled">Отменен</option>
+                      {statusOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                     
                     <button
                       onClick={() => deleteOrder(order.id)}
                       disabled={deleting === order.id}
-                      className="text-red-600 hover:text-red-900 disabled:opacity-50 text-xs block w-full text-center mt-1"
+                      className="text-red-600 hover:text-red-900 disabled:opacity-50 text-xs block w-full text-center mt-1 transition-colors"
                     >
                       {deleting === order.id ? 'Удаление...' : 'Удалить'}
                     </button>

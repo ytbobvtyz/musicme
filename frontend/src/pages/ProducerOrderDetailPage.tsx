@@ -193,7 +193,7 @@ const ProducerOrderDetailPage = () => {
 
   const getTrackAudioUrl = (track: any) => {
     if (track.audio_filename) {
-      return `http://localhost:8000/api/v1/tracks/${track.id}/audio`
+      return `/api/v1/tracks/${track.id}/audio`  // ← ОТНОСИТЕЛЬНЫЙ ПУТЬ
     }
     return track.preview_url || track.full_url
   }
