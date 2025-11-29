@@ -87,6 +87,22 @@ const AuthModal = ({ isOpen, onClose, onSuccess, onGuestMode }: AuthModalProps) 
               Продолжить с Telegram
             </button>
           </div>
+          {/* Разделитель */}
+          <div className="my-6 flex items-center">
+            <div className="flex-1 border-t border-gray-300"></div>
+            <span className="px-3 text-gray-500 text-sm">v</span>
+            <div className="flex-1 border-t border-gray-300"></div>
+          </div>
+
+          {/* Гостевой режим */}
+          <div className="space-y-3">
+            <button
+              onClick={onClose}
+              className="w-full px-4 py-3 text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              Назад
+            </button>
+          </div>
         </div>
       </div>
     </div>
