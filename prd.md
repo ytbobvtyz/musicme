@@ -262,9 +262,14 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
                                      ↑
                                      └─── REVISION_REQUESTED
 
+Структура docker:
+-backend
+-frontend
+-postgres
+-nginx
+
 Структура backend:
-.
-├── alembic
+ alembic
 │   ├── versions
 │   │   └── .gitkeep
 │   ├── env.py
@@ -336,8 +341,11 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
 │   └── init_database.py
 ├── uploads
 │   ├── audio
+│   │   └── fe45c27a-75f1-4d66-bbae-6f0a301b487e_preview.mp3
 │   ├── covers
+│   │   └── cfeab7bb-4193-4e00-a9c5-6633bcdfd2e1_cover.jpg
 │   └── examples
+│       └── cfeab7bb-4193-4e00-a9c5-6633bcdfd2e1.mp3
 ├── .dockerignore
 ├── alembic.ini
 ├── main.py
@@ -350,11 +358,20 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
 │   │   ├── index-C9BLGvov.js
 │   │   └── index-D2wyqtMA.css
 │   └── index.html
+├── public
+│   ├── apple-touch-icon.png
+│   ├── favicon-16x16.png
+│   ├── favicon-32x32.png
+│   ├── favicon.ico
+│   ├── mainfest.json
+│   ├── robots.txt
+│   └── sitemap.xml
 ├── src
 │   ├── api
 │   │   ├── admin.ts
 │   │   ├── auth.ts
 │   │   ├── client.ts
+│   │   ├── exampleTracks.ts
 │   │   ├── genres.ts
 │   │   ├── orders.ts
 │   │   ├── payments.ts
@@ -402,8 +419,10 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
 │   │   ├── OrderPage.tsx
 │   │   ├── OrdersPage.tsx
 │   │   ├── OrderSuccessPage.tsx
+│   │   ├── PrivacyPage.tsx
 │   │   ├── ProducerOrderDetailPage.tsx
 │   │   ├── ProducerPage.tsx
+│   │   ├── TermsPage.tsx
 │   │   └── TrackPage.tsx
 │   ├── store
 │   │   └── authStore.ts
@@ -425,6 +444,7 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
 │   ├── main.tsx
 │   └── vite-env.d.ts
 ├── .dockerignore
+├── .env
 ├── index.html
 ├── package-lock.json
 ├── package.json

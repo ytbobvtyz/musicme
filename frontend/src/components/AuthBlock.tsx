@@ -20,17 +20,19 @@ const AuthBlock = () => {
   }, [])
 
   const handleAuth = async (provider: 'vk' | 'google' | 'yandex' | 'telegram') => {
-    if (provider === 'yandex') {
-      // Относительный путь - будет работать на любом домене
-      window.location.href = '/api/v1/auth/yandex/login'
+    if (provider === 'yandex' || provider === 'google') {
+      // Используем правильные URLs для Яндекс и Google
+      const oauthUrl = `/api/v1/auth/${provider}/login`
+      console.log(`🔍 OAuth URL для ${provider}:`, oauthUrl)
+      window.location.href = oauthUrl
       return
     }
     
-    // TODO: Реализовать OAuth авторизацию для других провайдеров
+    // Для VK и Telegram временные заглушки
     console.log(`Авторизация через ${provider}`)
     alert(`Авторизация через ${provider} будет реализована позже`)
   }
-
+  
   const sendTelegramAuthData = async (telegramData: any) => {
     try {
       // Используем apiClient вместо прямого fetch

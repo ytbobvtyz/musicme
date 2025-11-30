@@ -20,14 +20,14 @@ const AuthModal = ({ isOpen, onClose, onSuccess, onGuestMode }: AuthModalProps) 
   if (!isOpen) return null
 
   const handleOAuthLogin = (provider: string) => {
-    // Временная заглушка для Google и Telegram
-    if (provider === 'google' || provider === 'telegram') {
-      alert(`Авторизация через ${provider} временно недоступна. Используйте Яндекс или ВКонтакте.`)
+    // Временная заглушка для Telegram
+    if (provider === 'telegram') {
+      alert(`Авторизация через ${provider} временно недоступна. Используйте Яндекс, Google или ВКонтакте.`)
       return
     }
     
-    // Для Яндекс и VK используем правильные URLs
-    const oauthUrl = getOAuthUrl(provider)
+    // Для Яндекс, Google и VK используем правильные URLs
+    const oauthUrl = `/api/v1/auth/${provider}/login`
     console.log('🔍 OAuth URL:', oauthUrl)
     window.location.href = oauthUrl
   }

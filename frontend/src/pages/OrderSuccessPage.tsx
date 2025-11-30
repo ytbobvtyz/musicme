@@ -1,8 +1,17 @@
-import { Link, useLocation } from 'react-router-dom'
+// src/pages/OrderSuccessPage.tsx
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 
 const OrderSuccessPage = () => {
   const { state } = useLocation()
-  
+  const { orderId } = useParams()
+  const [orderDetails, setOrderDetails] = useState<any>(null)
+
+  useEffect(() => {
+    // Можно добавить загрузку деталей заказа по orderId если нужно
+    console.log('Order ID:', orderId)
+  }, [orderId])
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center p-6">
       <div className="max-w-md w-full">
@@ -37,16 +46,29 @@ const OrderSuccessPage = () => {
           {/* Основное сообщение */}
           <p className="text-gray-600 mb-6 leading-relaxed">
             Мы уже начали работать над вашей уникальной песней. 
-            Вы получите уведомление, когда композиция будет готова.
+            Вы получите уведомление в Telegram, когда композиция будет готова.
           </p>
 
           {/* Детали заказа */}
           <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
-            <h3 className="font-semibold text-gray-900 mb-2">Детали заказа:</h3>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>• Срок выполнения: 24-48 часов</li>
-              <li>• Уведомление придет в Telegram</li>
-              <li>• Прослушаете preview перед оплатой</li>
+            <h3 className="font-semibold text-gray-900 mb-2">Что дальше?</h3>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="text-green-500 mt-0.5">✓</span>
+                <span>Заказ принят в работу</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-0.5">⏱</span>
+                <span>Срок выполнения: 24-48 часов</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-500 mt-0.5">🔔</span>
+                <span>Уведомление придет в Telegram</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500 mt-0.5">🎵</span>
+                <span>Прослушаете preview перед оплатой</span>
+              </li>
             </ul>
           </div>
 
@@ -67,36 +89,18 @@ const OrderSuccessPage = () => {
                     Чтобы отслеживать статус заказа, получать уведомления 
                     и иметь доступ к истории ваших заказов
                   </p>
-                  <Link
-                    to="/auth/register"
-                    className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
-                  >
-                    Создать аккаунт
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link
+                      to="/auth/register"
+                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors text-center"
+                    >
+                      Создать аккаунт
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
           )}
-
-          {/* Дополнительная информация */}
-          <div className="bg-yellow-50 rounded-lg p-4 mb-6 border border-yellow-200">
-            <div className="flex items-start gap-3">
-              <div className="text-yellow-600 mt-0.5">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="text-left">
-                <p className="text-sm text-yellow-800 font-medium">
-                  Что дальше?
-                </p>
-                <p className="text-xs text-yellow-700 mt-1">
-                  В течение 24 часов вы получите демо-версию песни. 
-                  После одобрения - полную версию без водяных знаков.
-                </p>
-              </div>
-            </div>
-          </div>
 
           {/* Кнопки действий */}
           <div className="space-y-3">
@@ -111,13 +115,13 @@ const OrderSuccessPage = () => {
               to="/examples"
               className="block w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
             >
-              Посмотреть другие примеры
+              Посмотреть примеры работ
             </Link>
 
             {!state?.guestOrder && (
               <Link
                 to="/orders"
-                className="block w-full text-blue-600 py-2 px-4 rounded-lg font-medium hover:text-blue-700 transition-colors"
+                className="block w-full text-blue-600 py-2 px-4 rounded-lg font-medium hover:text-blue-700 transition-colors text-sm"
               >
                 Перейти к моим заказам ›
               </Link>
@@ -129,10 +133,19 @@ const OrderSuccessPage = () => {
             <p className="text-xs text-gray-500">
               Есть вопросы?{' '}
               <a 
-                href="mailto:support@musicme.ru" 
+                href="mailto:ytbob@yandex.ru" 
                 className="text-blue-600 hover:text-blue-700 underline"
               >
                 Напишите нам
+              </a>
+              {' '}или напишите в{' '}
+              <a 
+                href="https://t.me/musicme_support" 
+                className="text-blue-600 hover:text-blue-700 underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Telegram
               </a>
             </p>
           </div>
