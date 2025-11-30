@@ -30,6 +30,10 @@ services:
       - YANDEX_CLIENT_ID=${YANDEX_CLIENT_ID}           # ⬅️ ДОБАВИТЬ
       - YANDEX_CLIENT_SECRET=${YANDEX_CLIENT_SECRET}   # ⬅️ ДОБАВИТЬ
       - YANDEX_REDIRECT_URL=${YANDEX_REDIRECT_URL}     # ⬅️ ДОБАВИТЬ
+      - GOOGLE_CLIENT_ID={GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET={GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URL={GOOGLE_REDIRECT_URL}
+
     depends_on:
       postgres:
         condition: service_healthy
