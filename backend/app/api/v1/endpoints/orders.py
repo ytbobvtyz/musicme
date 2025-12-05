@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 import logging
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
 
 from app.crud.order import crud_order
 from app.core.database import get_db
@@ -53,6 +54,8 @@ async def create_order(
         order = await crud_order.create(db, order_dict, user_id=current_user.id)
         
         await db.refresh(order, ['theme', 'genre'])
+        
+        asyncio.create_task(order_service.after_order_created(order.id, db))
         
         logger.info(f"Заказ создан: {order.id}")
         return order
@@ -223,26 +226,28 @@ async def request_revision(
                 detail="Запрос правки возможен только когда заказ готов для проверки"
             )
         
-        # Проверяем что есть доступные правки
-        if order.rounds_remaining <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Лимит правок исчерпан"
+        # Сохраняем комментарий (если есть модуль revision_comments)
+        try:
+            from app.crud.revision import crud_revision_comment
+            from app.schemas.revision import RevisionCommentCreate
+            
+            # Получаем номер следующей правки
+            revision_number = await crud_revision_comment.get_last_revision_number(db, order_id) + 1
+            
+            # Сохраняем комментарий
+            comment_data = RevisionCommentCreate(
+                order_id=order_id,
+                comment=comment
             )
+            await crud_revision_comment.create(db, comment_data, current_user.id, revision_number)
+        except ImportError:
+            # Если модуль ревизий не настроен, просто логируем
+            logger.info(f"Комментарий к правке (без сохранения в БД): {comment}")
         
-        # Получаем номер следующей правки
-        revision_number = await crud_revision_comment.get_last_revision_number(db, order_id) + 1
-        
-        # Сохраняем комментарий
-        from app.schemas.revision import RevisionCommentCreate
-        comment_data = RevisionCommentCreate(
-            order_id=order_id,
-            comment=comment
+        # ⬇️⬇️⬇️ ИСПОЛЬЗУЕМ НОВЫЙ СЕРВИС
+        has_revisions_left = await order_status_service.on_revision_requested(
+            db, order_id, comment
         )
-        await crud_revision_comment.create(db, comment_data, current_user.id, revision_number)
-        
-        # Используем сервис для обработки правки
-        has_revisions_left = await order_status_service.on_revision_requested(db, order)
         
         if not has_revisions_left:
             raise HTTPException(
@@ -250,7 +255,7 @@ async def request_revision(
                 detail="Лимит правок исчерпан"
             )
         
-        logger.info(f"Запрошена правка для заказа: {order_id}, комментарий: {comment}, правка #{revision_number}, осталось правок: {order.rounds_remaining}")
+        logger.info(f"Запрошена правка для заказа: {order_id}")
         return order
         
     except HTTPException:
@@ -341,14 +346,8 @@ async def confirm_payment(
                 detail="Нельзя подтвердить оплату для этого статуса"
             )
         
-        # Меняем статус на ожидание проверки оплаты
-        order.status = OrderStatus.PAYMENT_PENDING
-        order.payment_confirmed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        
-        await db.commit()
-        
-        # TODO: Уведомление продюсеру
-        # TODO: Уведомление админу о необходимости проверки оплаты
+        # ⬇️⬇️⬇️ ИСПОЛЬЗУЕМ НОВЫЙ СЕРВИС
+        await order_status_service.on_payment_confirmed(db, order_id)
         
         return {
             "message": "Отлично! Мы проверим оплату и в течение 24 часов (обычно быстрее!) выложим полный трек на вашу страницу!",
@@ -360,7 +359,6 @@ async def confirm_payment(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail="Ошибка подтверждения оплаты")
-
 
 @router.post("/{order_id}/final-approve")
 async def final_approve(

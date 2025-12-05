@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from pydantic import Field
+from typing import Optional
 
 class Settings(BaseSettings):
     # Яндекс OAuth
@@ -11,6 +12,13 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = "not-set"
     GOOGLE_CLIENT_SECRET: str = "not-set"
     GOOGLE_REDIRECT_URL: str = "https://musicme.ru/api/v1/auth/google/callback"
+    
+    # Telegram Bot
+    TELEGRAM_BOT_TOKEN: str = Field(default="")
+    TELEGRAM_BOT_USERNAME: str = Field(default="musicme_ru_bot")
+    TELEGRAM_BOT_NAME: str = Field(default="MusicMe Bot")
+    TELEGRAM_BOT_MODE: str = Field(default="background")  # background, standalone
+    c: Optional[int] = Field(default=None)
 
     # JWT
     JWT_SECRET: str

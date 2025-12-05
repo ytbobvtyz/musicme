@@ -1,10 +1,16 @@
+"""
+Сервис для работы с заказами
+"""
 from typing import Dict, Any
 from uuid import UUID
 from fastapi import HTTPException, status
+import logging
 
 from app.schemas.order import OrderCreate
-from app.models.tariff_plan import TariffPlan
-from app.crud.tariff import crud_tariff  # ← НОВЫЙ ИМПОРТ
+from app.crud.tariff import crud_tariff
+from app.services.notification_service import notification_service
+
+logger = logging.getLogger(__name__)
 
 
 class OrderService:
@@ -87,6 +93,34 @@ class OrderService:
         order_dict['user_id'] = user_id
         
         return order_dict
+
+    @staticmethod
+    async def after_order_created(order_id: UUID, db) -> bool:
+        """
+        Действия после создания заказа
+        
+        Args:
+            order_id: UUID созданного заказа
+            db: Сессия базы данных
+            
+        Returns:
+            bool: True если действия выполнены успешно
+        """
+        try:
+            # 1. Отправляем уведомления
+            await notification_service.notify_order_created(order_id)
+            
+            # 2. Можно добавить другие действия:
+            # - Логирование
+            # - Аналитика
+            # - Интеграция с внешними сервисами
+            
+            logger.info(f"Post-creation actions completed for order {order_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in after_order_created for order {order_id}: {e}")
+            return False
 
 
 order_service = OrderService()

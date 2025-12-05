@@ -11,6 +11,7 @@ import logging
 import uuid
 import os
 from datetime import datetime, timezone
+
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_producer
 from app.models.user import User
@@ -22,7 +23,9 @@ from app.crud.order import crud_order
 from app.schemas.track import Track as TrackSchema
 from app.models.track import Track
 from app.core.file_storage import file_storage
-import logging
+
+from app.services.order_status_service import order_status_service
+from app.services.notification_service import notification_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -218,9 +221,11 @@ async def upload_track(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Файл должен быть аудио"
             )
+        
         if order.status in [OrderStatus.PAID, OrderStatus.IN_PROGRESS_FINAL_REVISION]:
             is_preview = False  # Для оплаченных заказов и финальных правок - всегда полная версия
             print("🔍 Order is paid or final revision, forcing full version")
+        
         # Сохраняем файл (обрезаем если это превью)
         if is_preview:
             print("🔍 Creating preview version (60 seconds)")
@@ -231,6 +236,11 @@ async def upload_track(
         
         print(f"🔍 File saved: {file_info['filename']}, size: {file_info['size']}")
         
+        # ⬇️⬇️⬇️ ПОЛУЧАЕМ СЛЕДУЮЩУЮ ВЕРСИЮ ТРЕКА ⬇️⬇️⬇️
+        from app.crud.track import crud_track
+        version = await crud_track.increment_version(db, order_id, is_preview)
+        print(f"🔍 Track version: {version}")
+        
         # Создаем запись в БД
         db_track = Track(
             order_id=order_id,
@@ -238,41 +248,25 @@ async def upload_track(
             audio_filename=file_info["filename"],
             audio_size=file_info["size"],
             audio_mimetype=file_info["mimetype"],
-            is_preview=is_preview
+            is_preview=is_preview,
+            version=version  # ⬅️ ДОБАВЛЯЕМ ВЕРСИЮ
         )
         
         db.add(db_track)
         await db.commit()
         await db.refresh(db_track)
         
-        print(f"✅ Track created: {db_track.id}, is_preview: {db_track.is_preview}")
+        print(f"✅ Track created: {db_track.id}, is_preview: {db_track.is_preview}, version: {db_track.version}")
         
-        # ⬇️⬇️⬇️ ИСПРАВЛЯЕМ ЛОГИКУ СМЕНЫ СТАТУСА ⬇️⬇️⬇️
-        if is_preview and order.status in [OrderStatus.IN_PROGRESS, OrderStatus.DRAFT]:
-            print(f"🔄 Auto-updating order status from {order.status} to READY_FOR_REVIEW")
-            order.status = OrderStatus.READY_FOR_REVIEW
-            await db.commit()
-            await db.refresh(order)
-            print(f"✅ Order status updated to: {order.status}")
+        # ⬇️⬇️⬇️ ЗАМЕНЯЕМ СТАРУЮ ЛОГИКУ НА ВЫЗОВ СЕРВИСА ⬇️⬇️⬇️
+        # Автоматически обновляем статус заказа через сервис
+        status_updated = await order_status_service.on_tracks_changed(db, order_id)
         
-        # ⬇️⬇️⬇️ ДОБАВЛЯЕМ ЛОГИКУ ДЛЯ ФИНАЛЬНЫХ ПРАВОК ⬇️⬇️⬇️
-        elif not is_preview and order.status == OrderStatus.IN_PROGRESS_FINAL_REVISION:
-            print(f"🔄 Final revision completed, updating status to COMPLETED")
-            order.status = OrderStatus.COMPLETED
-            order.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            await db.commit()
-            await db.refresh(order)
-            print(f"✅ Order status updated to: {order.status}")
+        if status_updated:
+            print(f"✅ Order status automatically updated via service")
+        else:
+            print(f"ℹ️ Order status not changed")
         
-        # ⬇️⬇️⬇️ СУЩЕСТВУЮЩАЯ ЛОГИКА ДЛЯ ОБЫЧНЫХ ПОЛНЫХ ТРЕКОВ ⬇️⬇️⬇️
-        elif not is_preview and order.status == OrderStatus.PAID:
-            print(f"🔄 Full track uploaded for paid order, updating status to READY_FOR_FINAL_REVIEW")
-            order.status = OrderStatus.READY_FOR_FINAL_REVIEW
-            order.final_track_uploaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            await db.commit()
-            await db.refresh(order)
-            print(f"✅ Order status updated to: {order.status}")
-    
         return TrackSchema.model_validate(db_track)
         
     except HTTPException:
@@ -455,7 +449,6 @@ async def add_producer_comment(
             detail=f"Ошибка при добавлении комментария: {str(e)}"
         )
 
-# В app/api/v1/endpoints/producer.py - ИСПРАВЛЯЕМ проверку статуса
 @router.post("/orders/{order_id}/upload-final-track")
 async def upload_final_track(
     order_id: UUID,
@@ -486,6 +479,11 @@ async def upload_final_track(
         # Сохраняем полную версию (не превью!)
         file_info = await _save_full_audio_file(audio_file)
         
+        # ⬇️⬇️⬇️ ПОЛУЧАЕМ СЛЕДУЮЩУЮ ВЕРСИЮ ТРЕКА ⬇️⬇️⬇️
+        from app.crud.track import crud_track
+        version = await crud_track.increment_version(db, order_id, is_preview=False)
+        print(f"🔍 Final track version: {version}")
+        
         # Создаем запись трека
         db_track = Track(
             order_id=order_id,
@@ -493,22 +491,29 @@ async def upload_final_track(
             audio_filename=file_info["filename"],
             audio_size=file_info["size"],
             audio_mimetype=file_info["mimetype"],
-            is_preview=False  # ⬅️ Это полная версия!
+            is_preview=False,  # ⬅️ Это полная версия!
+            version=version  # ⬅️ ДОБАВЛЯЕМ ВЕРСИЮ
         )
         
         db.add(db_track)
-        
-        # Меняем статус заказа на "готов для финальной проверки"
-        order.status = OrderStatus.READY_FOR_FINAL_REVIEW
-        order.final_track_uploaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        
         await db.commit()
+        await db.refresh(db_track)
         
-        # TODO: Уведомление пользователю
+        print(f"✅ Final track created: {db_track.id}, version: {db_track.version}")
+        
+        # ⬇️⬇️⬇️ ЗАМЕНЯЕМ СТАРУЮ ЛОГИКУ НА ВЫЗОВ СЕРВИСА ⬇️⬇️⬇️
+        # Автоматически обновляем статус заказа через сервис
+        status_updated = await order_status_service.on_tracks_changed(db, order_id)
+        
+        if status_updated:
+            print(f"✅ Order status automatically updated via service")
+        else:
+            print(f"ℹ️ Order status not changed")
         
         return {
             "message": "Финальный трек загружен! Пользователь получит уведомление.",
-            "status": order.status
+            "status": order.status,
+            "track_id": db_track.id
         }
         
     except HTTPException:
@@ -542,13 +547,30 @@ async def producer_confirm_payment(
             )
         
         # Меняем статус на оплачен
+        old_status = order.status
         order.status = OrderStatus.PAID
         order.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        # order.payment_confirmed_by = current_user.id  # Кто подтвердил
         
         await db.commit()
         
-        # TODO: Уведомление пользователю что оплата подтверждена
+        # ⬇️⬇️⬇️ ДОБАВЛЯЕМ УВЕДОМЛЕНИЕ ⬇️⬇️⬇️
+        # Отправляем уведомление об изменении статуса
+        await notification_service.notify_order_status_changed(
+            order_id, old_status, order.status
+        )
+        
+        # Отправляем специальное уведомление пользователю
+        from app.crud.user import crud_user
+        user = await crud_user.get_by_id(db, order.user_id)
+        if user and user.telegram_id:
+            user_message = (
+                f"💰 <b>Оплата подтверждена!</b>\n\n"
+                f"Заказ #{str(order.id)[:8]} оплачен и принят в работу.\n\n"
+                f"Продюсер уже создает финальную версию вашей песни.\n"
+                f"Обычно это занимает 24 часа.\n\n"
+                f"🌐 <a href='https://musicme.ru/order/{order.id}'>Открыть заказ</a>"
+            )
+            await notification_service.notify_admin(user_message)  # Временно через admin функцию
         
         logger.info(f"Продюсер {current_user.id} подтвердил оплату для заказа {order_id}")
         

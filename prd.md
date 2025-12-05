@@ -269,7 +269,8 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
 -nginx
 
 Структура backend:
- alembic
+.
+├── alembic
 │   ├── versions
 │   │   └── .gitkeep
 │   ├── env.py
@@ -293,6 +294,15 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
 │   │   │   ├── __init__.py
 │   │   │   └── router.py
 │   │   └── __init__.py
+│   ├── bot
+│   │   ├── __init__.py
+│   │   ├── bot.py
+│   │   ├── config.py
+│   │   ├── handlers.py
+│   │   ├── middleware.py
+│   │   ├── notifications.py
+│   │   ├── runner.py
+│   │   └── service.py
 │   ├── core
 │   │   ├── __init__.py
 │   │   ├── config.py
@@ -335,16 +345,59 @@ READY_FOR_REVIEW → PAYMENT_PENDING → PAID → READY_FOR_FINAL_REVIEW → COM
 │   │   ├── track.py
 │   │   └── user.py
 │   ├── services
+│   │   ├── notification_service.py
 │   │   ├── order_service.py
 │   │   └── order_status_service.py
 │   ├── __init__.py
 │   └── init_database.py
 ├── uploads
 │   ├── audio
+│   │   ├── 1572611f-5d40-4655-8a66-2d60398a1ab5_preview.mp3
+│   │   ├── 241a0f27-6ae5-42c3-8a94-29ddd716d7b9.mp3
+│   │   ├── 2fb6bf41-7845-4fb5-8d7e-53a71c92d6d0_preview.mp3
+│   │   ├── 331e584d-08ce-4560-a810-55b0067c756e.mp3
+│   │   ├── 3616688a-5e16-4724-a117-2416b014bf5c_preview.mp3
+│   │   ├── 4ca06d62-d5b8-47ff-bb6f-547b20a887f3.mp3
+│   │   ├── 4d49d32c-4bf1-478e-9836-4cccdd653aed_preview.mp3
+│   │   ├── 4fa22a0e-afec-4cfa-9f0e-6475bb262f36.mp3
+│   │   ├── 5f3840dd-0148-4302-93b0-bdb21e0ec1ee.mp3
+│   │   ├── 68393404-d87a-4e92-8b95-3a1b15e9ec26_preview.mp3
+│   │   ├── 6aa19a4b-39d0-40ce-8202-9b5a2922c7d3.mp3
+│   │   ├── 73f4d766-d872-4682-8241-dbbce331e71f.mp3
+│   │   ├── 860348da-7e9c-41f4-a603-c89d354eae94.mp3
+│   │   ├── 867ea1b1-854f-434a-8303-4792c01e95bc_preview.mp3
+│   │   ├── 8ff7debf-feed-42db-9592-3f2afafbfa79.mp3
+│   │   ├── 9c034176-67ee-4d5f-8633-fe3114b32e81.mp3
+│   │   ├── a0e07ea3-7089-4b2c-8998-8996e56ef4cc_preview.mp3
+│   │   ├── a49d1b4e-cce9-43ce-9b68-56379b0b22dd.mp3
+│   │   ├── a8460b36-df68-493a-a07f-fdf30e4d8a8c_preview.mp3
+│   │   ├── a9d6d86a-2cb1-467a-98e1-2832a812f7db.mp3
+│   │   ├── c19b23b0-4e25-4875-af35-417b0bfb9377.mp3
+│   │   ├── c709a9f2-27a6-4116-9dd0-3cc3327db69e.mp3
+│   │   ├── d1508232-1d17-4f07-a801-45952fb81575.mp3
+│   │   ├── d768abc6-4bc4-4a07-909d-4ee0dd5ff888.mp3
+│   │   ├── e780f7bf-57e5-43f6-a148-5e8d82bf9c38_preview.mp3
 │   │   └── fe45c27a-75f1-4d66-bbae-6f0a301b487e_preview.mp3
 │   ├── covers
+│   │   ├── 3e03144a-75de-4cf9-837b-75dd92327c3a_cover.jpg
+│   │   ├── 43ce8990-9531-4996-b63b-f0dd15c7fe6d_cover.jpg
+│   │   ├── 64867bec-7b92-4d49-898d-b9a2256c0382_cover.jpg
+│   │   ├── 74fadcb0-c086-41e4-b624-820b6d19f1d2_cover.jpg
+│   │   ├── 7a8b204e-92cf-4b72-9254-c68b25fbf5c5_cover.jpg
+│   │   ├── 8bb21ed3-cbe9-4ce5-b723-a5939416f69b_cover.jpg
+│   │   ├── 96124bc7-48c6-4e66-9395-5ff4490db34e_cover.jpg
+│   │   ├── 963593df-540e-4e61-93ad-ec9f253c3b35_cover.jpg
+│   │   ├── bae23759-82dd-46f5-b6f4-55fd9f5cd71f_cover.jpg
 │   │   └── cfeab7bb-4193-4e00-a9c5-6633bcdfd2e1_cover.jpg
 │   └── examples
+│       ├── 3e03144a-75de-4cf9-837b-75dd92327c3a.mp3
+│       ├── 43ce8990-9531-4996-b63b-f0dd15c7fe6d.mp3
+│       ├── 64867bec-7b92-4d49-898d-b9a2256c0382.mp3
+│       ├── 7a8b204e-92cf-4b72-9254-c68b25fbf5c5.mp3
+│       ├── 8bb21ed3-cbe9-4ce5-b723-a5939416f69b.mp3
+│       ├── 96124bc7-48c6-4e66-9395-5ff4490db34e.mp3
+│       ├── 963593df-540e-4e61-93ad-ec9f253c3b35.mp3
+│       ├── bae23759-82dd-46f5-b6f4-55fd9f5cd71f.mp3
 │       └── cfeab7bb-4193-4e00-a9c5-6633bcdfd2e1.mp3
 ├── .dockerignore
 ├── alembic.ini

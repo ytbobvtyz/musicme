@@ -7,6 +7,8 @@ import httpx
 from datetime import timedelta
 from fastapi.responses import RedirectResponse
 from urllib.parse import urlencode
+import hashlib
+import hmac
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -234,8 +236,12 @@ async def auth_telegram(
     """
     Авторизация через Telegram Login Widget
     """
-    # TODO: Реализовать проверку hash
-    # Пока пропускаем для тестирования
+    # Проверка hash для безопасности
+    if not await _verify_telegram_hash(telegram_data):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Telegram hash"
+        )
     
     # Ищем пользователя по telegram_id
     user = await crud_user.get_by_telegram_id(db, telegram_data.id)
@@ -247,7 +253,6 @@ async def auth_telegram(
         # Обновляем данные существующего пользователя
         user = await crud_user.update_telegram_data(db, user.id, telegram_data)
     
-    # ⬇️ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ СОЗДАНИЯ ТОКЕНА
     token = create_token_from_user(user)
     
     return AuthResponse(
@@ -255,6 +260,33 @@ async def auth_telegram(
         token_type="bearer",
         user=user
     )
+
+async def _verify_telegram_hash(telegram_data: TelegramAuth) -> bool:
+    """
+    Проверка подлинности данных от Telegram
+    """
+    data_check_string_parts = []
+    
+    # Сортируем данные кроме hash
+    sorted_data = sorted(telegram_data.dict(exclude={'hash'}).items())
+    
+    for key, value in sorted_data:
+        if value is not None:
+            data_check_string_parts.append(f"{key}={value}")
+    
+    data_check_string = "\n".join(data_check_string_parts)
+    
+    # Создаем secret key
+    secret_key = hashlib.sha256(settings.TELEGRAM_BOT_TOKEN.encode()).digest()
+    
+    # Вычисляем HMAC
+    hmac_hash = hmac.new(
+        secret_key, 
+        data_check_string.encode(), 
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac_hash == telegram_data.hash
 
 @router.get("/google/login")
 async def google_login_redirect():
